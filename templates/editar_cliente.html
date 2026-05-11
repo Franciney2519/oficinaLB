@@ -10,6 +10,7 @@
         <h5 class="card-title">Editar cliente: {{ client.nome }}</h5>
         <p class="text-muted small mb-3">Atualize os dados do cliente e gerencie os veículos cadastrados.</p>
         <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           {% for field, label in [
             ('nome', 'Nome completo'),
             ('cpf_cnpj', 'CPF/CNPJ'),
@@ -56,6 +57,7 @@
               {% if legacy_vehicle.placa %}— {{ legacy_vehicle.placa }}{% endif %}
             </div>
             <form method="post" action="{{ url_for('migrar_veiculo_legado', client_id=client.id_cliente) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="marca" value="{{ legacy_vehicle.marca }}">
               <input type="hidden" name="modelo" value="{{ legacy_vehicle.modelo }}">
               <input type="hidden" name="ano" value="{{ legacy_vehicle.ano }}">
@@ -78,6 +80,7 @@
                           data-bs-target="#editVeiculo{{ v.id_veiculo }}">Editar</button>
                   <form method="post" action="{{ url_for('excluir_veiculo', vehicle_id=v.id_veiculo) }}"
                         onsubmit="return confirm('Remover este veículo?')">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-sm btn-outline-danger">Remover</button>
                   </form>
                 {% endif %}
@@ -87,6 +90,7 @@
             {% if v.id_veiculo %}
               <div class="collapse" id="editVeiculo{{ v.id_veiculo }}">
                 <form method="post" action="{{ url_for('editar_veiculo', vehicle_id=v.id_veiculo) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <div class="row g-2">
                     <div class="col-6">
                       <label class="form-label small">Marca</label>
@@ -128,6 +132,7 @@
         <hr>
         <h6 class="fw-semibold mb-2">Adicionar veículo</h6>
         <form method="post" action="{{ url_for('adicionar_veiculo', client_id=client.id_cliente) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="row g-2">
             <div class="col-6">
               <label class="form-label small">Marca</label>

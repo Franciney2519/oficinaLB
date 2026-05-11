@@ -7,6 +7,7 @@
       <div class="card-body">
         <h5 class="card-title">Editar orçamento #{{ budget.id_orcamento }}</h5>
         <form method="post" id="formOrcamento">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
           <div class="mb-3">
             <label class="form-label">Cliente</label>
@@ -106,9 +107,9 @@
 {% block scripts %}
 <script>
 const vehiclesByClient  = {{ vehicles_by_client | tojson }};
-const currentClientId   = "{{ budget.id_cliente }}";
-const currentVeiculoId  = "{{ budget.id_veiculo or '' }}";
-const currentCor        = "{{ budget.carro_cor or '' }}";
+const currentClientId   = {{ (budget.id_cliente|string) | tojson }};
+const currentVeiculoId  = {{ ((budget.id_veiculo or '')|string) | tojson }};
+const currentCor        = {{ (budget.carro_cor or '') | tojson }};
 const selectCliente     = document.getElementById('selectCliente');
 const selectVeiculo     = document.getElementById('selectVeiculo');
 const inputCor          = document.getElementById('inputCor');
@@ -121,7 +122,10 @@ const existingItems     = {{ items | tojson }};
 let totalAtual = 0;
 
 function populateVehicles(cid, selectedVeiculoId) {
-  selectVeiculo.innerHTML = '<option value="">Selecione o veículo</option>';
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = 'Selecione o veículo';
+  selectVeiculo.replaceChildren(placeholder);
   const veiculos = vehiclesByClient[cid] || [];
   veiculos.forEach(v => {
     const opt = document.createElement('option');
@@ -195,33 +199,86 @@ function valorParaString(v) {
 
 function criarLinha(item = {}) {
   const tr = document.createElement('tr');
-  tr.innerHTML = `
-    <td><input type="text" name="item_descricao[]" class="form-control" value="${item.descricao || ''}" required></td>
-    <td>
-      <select name="item_tipo[]" class="form-select">
-        ${['Produto','Serviço','Outros'].map(opt => `<option value="${opt}" ${item.tipo === opt ? 'selected' : ''}>${opt}</option>`).join('')}
-      </select>
-    </td>
-    <td><input type="number" step="0.01" name="item_quantidade[]" class="form-control" value="${item.quantidade || 1}"></td>
-    <td><input type="text" inputmode="numeric" name="item_valor[]" class="form-control inp-valor" autocomplete="off" value="${valorParaString(item.valor_unitario)}"></td>
-    <td>
-      <div class="bloco-custo" style="display:none">
-        <label class="form-label small text-warning mb-1">Custo unit. (interno)</label>
-        <input type="text" inputmode="numeric" name="item_custo[]" class="form-control inp-custo" autocomplete="off" value="${valorParaString(item.custo_unitario)}" placeholder="0,00">
-      </div>
-    </td>
-    <td><button type="button" class="btn btn-sm btn-danger">Remover</button></td>`;
-  const tipoSelect = tr.querySelector("select[name='item_tipo[]']");
-  const blocoCusto = tr.querySelector('.bloco-custo');
+
+  function appendCell(child) {
+    const td = document.createElement('td');
+    td.appendChild(child);
+    tr.appendChild(td);
+    return td;
+  }
+
+  const descricaoInput = document.createElement('input');
+  descricaoInput.type = 'text';
+  descricaoInput.name = 'item_descricao[]';
+  descricaoInput.className = 'form-control';
+  descricaoInput.required = true;
+  descricaoInput.value = item.descricao || '';
+  appendCell(descricaoInput);
+
+  const tipoSelect = document.createElement('select');
+  tipoSelect.name = 'item_tipo[]';
+  tipoSelect.className = 'form-select';
+  ['Produto','Serviço','Outros'].forEach(optValue => {
+    const opt = document.createElement('option');
+    opt.value = optValue;
+    opt.textContent = optValue;
+    opt.selected = item.tipo === optValue;
+    tipoSelect.appendChild(opt);
+  });
+  appendCell(tipoSelect);
+
+  const quantidadeInput = document.createElement('input');
+  quantidadeInput.type = 'number';
+  quantidadeInput.step = '0.01';
+  quantidadeInput.name = 'item_quantidade[]';
+  quantidadeInput.className = 'form-control';
+  quantidadeInput.value = item.quantidade || 1;
+  appendCell(quantidadeInput);
+
+  const valorInput = document.createElement('input');
+  valorInput.type = 'text';
+  valorInput.inputMode = 'numeric';
+  valorInput.name = 'item_valor[]';
+  valorInput.className = 'form-control inp-valor';
+  valorInput.autocomplete = 'off';
+  valorInput.value = valorParaString(item.valor_unitario);
+  appendCell(valorInput);
+
+  const blocoCusto = document.createElement('div');
+  blocoCusto.className = 'bloco-custo';
+  blocoCusto.style.display = 'none';
+
+  const custoLabel = document.createElement('label');
+  custoLabel.className = 'form-label small text-warning mb-1';
+  custoLabel.textContent = 'Custo unit. (interno)';
+  blocoCusto.appendChild(custoLabel);
+
+  const custoInput = document.createElement('input');
+  custoInput.type = 'text';
+  custoInput.inputMode = 'numeric';
+  custoInput.name = 'item_custo[]';
+  custoInput.className = 'form-control inp-custo';
+  custoInput.autocomplete = 'off';
+  custoInput.placeholder = '0,00';
+  custoInput.value = valorParaString(item.custo_unitario);
+  blocoCusto.appendChild(custoInput);
+  appendCell(blocoCusto);
+
+  const removerBtn = document.createElement('button');
+  removerBtn.type = 'button';
+  removerBtn.className = 'btn btn-sm btn-danger';
+  removerBtn.textContent = 'Remover';
+  appendCell(removerBtn);
+
   function toggleCusto() {
     blocoCusto.style.display = tipoSelect.value === 'Produto' ? '' : 'none';
   }
   tipoSelect.addEventListener('change', toggleCusto);
   toggleCusto();
   tr.querySelectorAll('input').forEach(input => input.addEventListener('input', atualizarTotal));
-  aplicarMascaraValor(tr.querySelector('.inp-valor'));
-  aplicarMascaraValor(tr.querySelector('.inp-custo'));
-  tr.querySelector('button').addEventListener('click', () => { tr.remove(); atualizarTotal(); });
+  aplicarMascaraValor(valorInput);
+  aplicarMascaraValor(custoInput);
+  removerBtn.addEventListener('click', () => { tr.remove(); atualizarTotal(); });
   tabela.appendChild(tr);
 }
 

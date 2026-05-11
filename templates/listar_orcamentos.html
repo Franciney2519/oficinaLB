@@ -62,6 +62,7 @@
               {% endif %}
               {% if orcamento.can_reprovar %}
                 <form action="{{ url_for('reprovar_orcamento', budget_id=orcamento.id_orcamento) }}" method="post">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Confirmar reprovação?')">Reprovar</button>
                 </form>
               {% else %}

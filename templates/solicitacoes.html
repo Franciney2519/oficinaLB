@@ -39,6 +39,7 @@
                 <td class="text-end">
                   <form action="{{ url_for('aprovar_solicitacao', request_id=s.id_solicitacao) }}" method="post" class="d-inline"
                         onsubmit="return confirm('Aprovar o cadastro de {{ s.nome or s.usuario }} como Mecânico?')">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-sm btn-success">
                       <i class="bi bi-check-lg me-1"></i>Aprovar
                     </button>
@@ -51,6 +52,7 @@
                   <div class="modal fade" id="reprovaModal{{ s.id_solicitacao }}" tabindex="-1">
                     <div class="modal-dialog">
                       <form action="{{ url_for('reprovar_solicitacao', request_id=s.id_solicitacao) }}" method="post" class="modal-content text-start">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <div class="modal-header">
                           <h5 class="modal-title">Reprovar solicitação</h5>
                           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>

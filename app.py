@@ -13,11 +13,13 @@ Produção (Railway / Render):
 from __future__ import annotations
 
 import json
+import hmac
 import os
 import re
 import sys
 import time
 from datetime import datetime
+from urllib.parse import urljoin, urlparse
 
 # Carrega variáveis do .env em desenvolvimento local
 try:
@@ -52,6 +54,7 @@ from flask import (
     send_file,
     session,
 )
+from flask_wtf.csrf import CSRFProtect, CSRFError
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -86,7 +89,11 @@ app = Flask(
 # Necessário para que Flask reconheça HTTPS quando atrás do proxy do Railway
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
-_IS_PRODUCTION = os.environ.get("FLASK_ENV") == "production"
+_IS_PRODUCTION = (
+    os.environ.get("FLASK_ENV") == "production"
+    or bool(os.environ.get("RAILWAY_ENVIRONMENT"))
+    or bool(os.environ.get("RENDER"))
+)
 
 app.secret_key = os.environ.get("SECRET_KEY", "oficina-mecanica-secret-dev")
 if _IS_PRODUCTION and app.secret_key == "oficina-mecanica-secret-dev":
@@ -95,9 +102,36 @@ if _IS_PRODUCTION and app.secret_key == "oficina-mecanica-secret-dev":
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = _IS_PRODUCTION
+app.config["WTF_CSRF_TIME_LIMIT"] = None  # token vale enquanto sessão durar
 
-APP_USERNAME = os.environ.get("APP_USERNAME", "admin")
-APP_PASSWORD = os.environ.get("APP_PASSWORD", "oficina123")
+csrf = CSRFProtect(app)
+
+
+@app.errorhandler(CSRFError)
+def handle_csrf_error(error):
+    app.logger.warning("CSRF bloqueado em %s: %s", request.path, error.description)
+    flash("Sessao expirada ou formulario invalido. Recarregue a pagina e tente novamente.", "danger")
+    return redirect(url_for("login" if not session.get("logged_in") else "listar_orcamentos"))
+
+_DEFAULT_APP_USERNAME = "admin"
+_DEFAULT_APP_PASSWORD = "oficina123"
+APP_USERNAME = (os.environ.get("APP_USERNAME") or "").strip()
+APP_PASSWORD = os.environ.get("APP_PASSWORD") or ""
+_FALLBACK_ADMIN_ENABLED = bool(APP_USERNAME and APP_PASSWORD)
+
+if _FALLBACK_ADMIN_ENABLED and (
+    APP_USERNAME == _DEFAULT_APP_USERNAME or APP_PASSWORD == _DEFAULT_APP_PASSWORD
+):
+    fallback_message = (
+        "APP_USERNAME/APP_PASSWORD usam defaults inseguros. "
+        "Configure credenciais fortes ou remova essas variaveis para desabilitar o fallback."
+    )
+    if _IS_PRODUCTION:
+        raise RuntimeError(fallback_message)
+    app.logger.warning("%s Fallback admin desabilitado.", fallback_message)
+    APP_USERNAME = ""
+    APP_PASSWORD = ""
+    _FALLBACK_ADMIN_ENABLED = False
 
 ROLE_ADMIN = "admin"
 ROLE_MECANICO = "mecanico"
@@ -105,7 +139,9 @@ VALID_ROLES = {ROLE_ADMIN, ROLE_MECANICO}
 
 _LOGIN_MAX_ATTEMPTS = 5
 _LOGIN_BLOCK_SECONDS = 300  # 5 minutos
-_login_failures: dict = {}  # ip -> {"count": int, "blocked_until": float}
+_SIGNUP_MAX_ATTEMPTS = 5
+_SIGNUP_BLOCK_SECONDS = 600  # 10 minutos
+_local_rate_failures: dict = {}  # fallback local se o banco estiver indisponivel
 
 
 def _normalize_role(value) -> str:
@@ -127,28 +163,95 @@ def require_admin(view):
     return wrapped
 
 
+def _safe_redirect_from_referrer(default_endpoint: str):
+    """Redireciona apenas para referrers do mesmo host."""
+    referrer = request.referrer
+    if referrer:
+        host_url = urlparse(request.host_url)
+        target_url = urlparse(urljoin(request.host_url, referrer))
+        if target_url.scheme in {"http", "https"} and target_url.netloc == host_url.netloc:
+            return redirect(referrer)
+    return redirect(url_for(default_endpoint))
+
+
 def _get_client_ip() -> str:
     return request.headers.get("X-Forwarded-For", request.remote_addr or "unknown").split(",")[0].strip()
 
 
-def _is_login_blocked(ip: str) -> tuple[bool, int]:
+def _rate_limit_key(scope: str, identifier: str) -> str:
+    safe_identifier = (identifier or "unknown").strip()[:120]
+    return f"{scope}:{safe_identifier}"
+
+
+def _get_rate_limit_entry(scope: str, identifier: str) -> Optional[dict]:
+    key = _rate_limit_key(scope, identifier)
+    try:
+        return dal.get_rate_limit_state(key)
+    except Exception:  # pylint: disable=broad-except
+        app.logger.exception("Falha ao consultar rate-limit no banco; usando fallback local.")
+        return _local_rate_failures.get(key)
+
+
+def _clear_rate_limit(scope: str, identifier: str) -> None:
+    key = _rate_limit_key(scope, identifier)
+    _local_rate_failures.pop(key, None)
+    try:
+        dal.clear_rate_limit_state(key)
+    except Exception:  # pylint: disable=broad-except
+        app.logger.exception("Falha ao limpar rate-limit no banco.")
+
+
+def _is_rate_limited(scope: str, identifier: str, max_attempts: int) -> tuple[bool, int]:
     """Retorna (bloqueado, segundos_restantes)."""
-    entry = _login_failures.get(ip)
+    entry = _get_rate_limit_entry(scope, identifier)
     if not entry:
         return False, 0
-    if entry["count"] >= _LOGIN_MAX_ATTEMPTS:
-        remaining = entry["blocked_until"] - time.monotonic()
+    count = int(entry.get("count") or entry.get("fail_count") or 0)
+    blocked_until = float(entry.get("blocked_until") or 0)
+    if count >= max_attempts:
+        remaining = blocked_until - time.time()
         if remaining > 0:
             return True, int(remaining) + 1
-        _login_failures.pop(ip, None)
+        _clear_rate_limit(scope, identifier)
     return False, 0
 
 
-def _register_login_failure(ip: str) -> None:
-    entry = _login_failures.setdefault(ip, {"count": 0, "blocked_until": 0.0})
+def _register_rate_limit_failure(
+    scope: str,
+    identifier: str,
+    max_attempts: int,
+    block_seconds: int,
+) -> None:
+    key = _rate_limit_key(scope, identifier)
+    try:
+        dal.record_rate_limit_failure(key, max_attempts, block_seconds)
+        return
+    except Exception:  # pylint: disable=broad-except
+        app.logger.exception("Falha ao registrar rate-limit no banco; usando fallback local.")
+
+    entry = _local_rate_failures.setdefault(key, {"count": 0, "blocked_until": 0.0})
+    now = time.time()
+    if float(entry.get("blocked_until") or 0) <= now and int(entry.get("count") or 0) >= max_attempts:
+        entry["count"] = 0
     entry["count"] += 1
-    if entry["count"] >= _LOGIN_MAX_ATTEMPTS:
-        entry["blocked_until"] = time.monotonic() + _LOGIN_BLOCK_SECONDS
+    if entry["count"] >= max_attempts:
+        entry["blocked_until"] = now + block_seconds
+
+
+def _is_login_blocked(ip: str) -> tuple[bool, int]:
+    return _is_rate_limited("login", ip, _LOGIN_MAX_ATTEMPTS)
+
+
+def _register_login_failure(ip: str) -> None:
+    _register_rate_limit_failure("login", ip, _LOGIN_MAX_ATTEMPTS, _LOGIN_BLOCK_SECONDS)
+
+
+def _is_signup_blocked(ip: str) -> tuple[bool, int]:
+    return _is_rate_limited("signup", ip, _SIGNUP_MAX_ATTEMPTS)
+
+
+def _register_signup_failure(ip: str) -> None:
+    _register_rate_limit_failure("signup", ip, _SIGNUP_MAX_ATTEMPTS, _SIGNUP_BLOCK_SECONDS)
 
 
 _PUBLIC_PATHS = {"/favicon.ico", "/login", "/logout", "/solicitar-cadastro"}
@@ -160,6 +263,13 @@ def require_login():
         return
     if not session.get("logged_in"):
         return redirect("/login")
+
+
+def _constant_time_equal(left: str, right: str) -> bool:
+    return hmac.compare_digest(
+        str(left or "").encode("utf-8"),
+        str(right or "").encode("utf-8"),
+    )
 
 
 def _authenticate(username: str, password: str) -> Optional[dict]:
@@ -175,7 +285,8 @@ def _authenticate(username: str, password: str) -> Optional[dict]:
     try:
         employee = dal.get_employee_by_username(username)
     except Exception:  # pylint: disable=broad-except
-        employee = None
+        app.logger.exception("Erro ao consultar funcionario durante autenticacao.")
+        return None
 
     if employee and employee.get("senha_hash"):
         ativo_raw = str(employee.get("ativo", "")).strip().lower()
@@ -188,7 +299,9 @@ def _authenticate(username: str, password: str) -> Optional[dict]:
                 "role": _normalize_role(employee.get("perfil")),
             }
 
-    if username == APP_USERNAME and password == APP_PASSWORD:
+    fallback_user_ok = _constant_time_equal(username, APP_USERNAME) if _FALLBACK_ADMIN_ENABLED else False
+    fallback_pass_ok = _constant_time_equal(password, APP_PASSWORD) if _FALLBACK_ADMIN_ENABLED else False
+    if _FALLBACK_ADMIN_ENABLED and fallback_user_ok and fallback_pass_ok:
         return {
             "logged_in": True,
             "user_id": None,
@@ -204,9 +317,7 @@ def login():
     ip = _get_client_ip()
     blocked, remaining = _is_login_blocked(ip)
     if blocked:
-        minutes = remaining // 60
-        seconds = remaining % 60
-        error = f"Muitas tentativas. Tente novamente em {minutes}m {seconds}s."
+        error = "Muitas tentativas. Tente novamente em alguns minutos."
         return render_template("login.html", error=error)
 
     error = None
@@ -215,7 +326,7 @@ def login():
         password = request.form.get("password") or ""
         auth = _authenticate(username, password)
         if auth:
-            _login_failures.pop(ip, None)
+            _clear_rate_limit("login", ip)
             session.clear()
             session.update(auth)
             landing_endpoint = "dashboard" if auth["role"] == ROLE_ADMIN else "listar_orcamentos"
@@ -223,12 +334,9 @@ def login():
         _register_login_failure(ip)
         blocked, remaining = _is_login_blocked(ip)
         if blocked:
-            minutes = remaining // 60
-            seconds = remaining % 60
-            error = f"Muitas tentativas. Conta bloqueada por {minutes}m {seconds}s."
+            error = "Muitas tentativas. Tente novamente em alguns minutos."
         else:
-            attempts_left = _LOGIN_MAX_ATTEMPTS - _login_failures[ip]["count"]
-            error = f"Usuário ou senha incorretos. {attempts_left} tentativa(s) restante(s)."
+            error = "Usuário ou senha incorretos."
     return render_template("login.html", error=error)
 
 
@@ -248,7 +356,16 @@ def solicitar_cadastro():
     A solicitação fica pendente até que um admin aprove ou reprove.
     """
     form_data = {"nome": "", "telefone": "", "cargo": "", "usuario": ""}
+    ip = _get_client_ip()
+    blocked, _remaining = _is_signup_blocked(ip)
+    if blocked:
+        return render_template(
+            "solicitar_cadastro.html",
+            form_data=form_data,
+            error="Muitas solicitações em pouco tempo. Tente novamente em alguns minutos.",
+        )
     if request.method == "POST":
+        _register_signup_failure(ip)
         nome = (request.form.get("nome") or "").strip()
         telefone = (request.form.get("telefone") or "").strip()
         cargo = (request.form.get("cargo") or "").strip()
@@ -269,11 +386,12 @@ def solicitar_cadastro():
                 form_data=form_data,
                 error="Usuário deve ter 3 a 40 caracteres (letras, números, ponto, hífen ou underline).",
             )
-        if len(senha) < 6:
+        password_error = _validate_password_strength(senha)
+        if password_error:
             return render_template(
                 "solicitar_cadastro.html",
                 form_data=form_data,
-                error="A senha precisa ter pelo menos 6 caracteres.",
+                error=password_error,
             )
         if senha != confirmacao:
             return render_template(
@@ -286,8 +404,12 @@ def solicitar_cadastro():
             existing_employee = dal.get_employee_by_username(usuario)
             existing_pending = dal.has_pending_signup_for_username(usuario)
         except Exception:  # pylint: disable=broad-except
-            existing_employee = None
-            existing_pending = False
+            app.logger.exception("Erro ao verificar usuario existente em solicitacao de cadastro.")
+            return render_template(
+                "solicitar_cadastro.html",
+                form_data=form_data,
+                error="Não foi possível validar o usuário agora. Tente novamente em alguns minutos.",
+            )
         if existing_employee or existing_pending:
             return render_template(
                 "solicitar_cadastro.html",
@@ -415,6 +537,7 @@ def inject_pending_signup_count():
     try:
         return {"pending_signup_count": dal.count_pending_signup_requests()}
     except Exception:  # pylint: disable=broad-except
+        app.logger.exception("Erro ao contar solicitacoes pendentes.")
         return {"pending_signup_count": 0}
 LOGO_SOURCE_PATH = os.path.join(PROJECT_DIR, "static", "logo.png")
 TAXA_CARTAO_CREDITO = 0.03
@@ -515,6 +638,7 @@ def favicon():
 
 
 @app.route("/atualizar-base", methods=["POST"])
+@require_admin
 def atualizar_base():
     """Botão global que força a leitura/validação das planilhas de dados."""
     dal.ensure_all_files_exist()
@@ -522,7 +646,7 @@ def atualizar_base():
     saved_at = "; ".join(f"{nome}: {caminho}" for nome, caminho in data_files.items())
     app.logger.info("Atualização solicitada. Arquivos de dados em uso: %s", saved_at)
     flash("Base de dados atualizada a partir dos arquivos locais.", "success")
-    return redirect(request.referrer or url_for("dashboard"))
+    return _safe_redirect_from_referrer("dashboard")
 
 
 def _parse_date(date_str: str) -> datetime:
@@ -1172,6 +1296,17 @@ CLIENT_FIELDS = [
 ]
 EMPLOYEE_FIELDS = ["nome", "telefone", "cargo", "observacoes"]
 EMPLOYEE_USERNAME_RE = re.compile(r"^[A-Za-z0-9_.-]{3,40}$")
+PASSWORD_MIN_LENGTH = 8
+PASSWORD_HAS_LETTER_RE = re.compile(r"[A-Za-z]")
+PASSWORD_HAS_NUMBER_RE = re.compile(r"\d")
+
+
+def _validate_password_strength(password: str) -> Optional[str]:
+    if len(password or "") < PASSWORD_MIN_LENGTH:
+        return f"A senha precisa ter pelo menos {PASSWORD_MIN_LENGTH} caracteres."
+    if not PASSWORD_HAS_LETTER_RE.search(password) or not PASSWORD_HAS_NUMBER_RE.search(password):
+        return "A senha precisa conter pelo menos uma letra e um número."
+    return None
 
 
 def _build_employee_access_payload(form, *, existing: Optional[dict] = None) -> Tuple[dict, Optional[str]]:
@@ -1202,11 +1337,12 @@ def _build_employee_access_payload(form, *, existing: Optional[dict] = None) -> 
     payload["usuario"] = usuario_raw or (existing.get("usuario") if existing else None)
 
     if senha:
-        if len(senha) < 6:
-            return {}, "A senha precisa ter pelo menos 6 caracteres."
+        password_error = _validate_password_strength(senha)
+        if password_error:
+            return {}, password_error
         payload["senha_hash"] = generate_password_hash(senha)
     elif not has_existing_pwd:
-        return {}, "Defina uma senha de pelo menos 6 caracteres para conceder acesso."
+        return {}, f"Defina uma senha de pelo menos {PASSWORD_MIN_LENGTH} caracteres para conceder acesso."
 
     return payload, None
 
@@ -1578,6 +1714,10 @@ def editar_funcionario(employee_id: int):
     if access_error:
         flash(access_error, "warning")
         return redirect(url_for("funcionarios"))
+    is_editing_self = session.get("user_id") == employee_id
+    if is_editing_self and _normalize_role(access_payload.get("perfil")) != ROLE_ADMIN:
+        flash("Você não pode remover seu próprio perfil de administrador.", "warning")
+        return redirect(url_for("funcionarios"))
     payload.update(access_payload)
 
     dal.update_employee(employee_id, payload)
@@ -1591,6 +1731,9 @@ def toggle_funcionario(employee_id: int):
     employee = dal.get_employee_by_id(employee_id)
     if not employee:
         flash("Funcionário não encontrado.", "danger")
+        return redirect(url_for("funcionarios"))
+    if session.get("user_id") == employee_id:
+        flash("Você não pode inativar o próprio usuário administrador.", "warning")
         return redirect(url_for("funcionarios"))
     current = str(employee.get("ativo", "")).strip().lower()
     is_active = current not in {"false", "0", "nao", "não"}

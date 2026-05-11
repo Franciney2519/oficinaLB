@@ -9,6 +9,7 @@
           <h5 class="card-title mb-0">Funcionários cadastrados</h5>
           <form action="{{ url_for('deduplicar_funcionarios') }}" method="post"
                 onsubmit="return confirm('Remover duplicatas? Será mantido apenas o registro ativo de menor ID para cada nome.')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-sm btn-outline-warning">Remover duplicatas</button>
           </form>
         </div>
@@ -71,6 +72,7 @@
                       Editar
                     </button>
                     <form action="{{ url_for('toggle_funcionario', employee_id=f.id_funcionario) }}" method="post" class="d-inline">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                       {% if ativo %}
                         <button class="btn btn-sm btn-outline-secondary" type="submit">Inativar</button>
                       {% else %}
@@ -94,6 +96,7 @@
       <div class="card-body">
         <h5 class="card-title" id="form-title">Novo funcionário</h5>
         <form method="post" id="funcionario-form" action="{{ url_for('funcionarios') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="mb-3">
             <label class="form-label">Nome</label>
             <input type="text" name="nome" id="f-nome" class="form-control" required>
@@ -131,12 +134,13 @@
             </label>
             <div class="input-group">
               <input type="password" name="senha" id="f-senha" class="form-control"
-                     placeholder="mínimo 6 caracteres" autocomplete="new-password" minlength="6">
+                     placeholder="mínimo 8 caracteres" autocomplete="new-password" minlength="8">
               <button class="btn btn-outline-secondary" type="button" id="btn-toggle-senha"
                       title="Mostrar/ocultar senha" aria-label="Mostrar senha">
                 <i class="bi bi-eye" id="icone-senha"></i>
               </button>
             </div>
+            <div class="form-text">Mínimo 8 caracteres, com pelo menos uma letra e um número.</div>
           </div>
           <div class="mb-3">
             <label class="form-label">Perfil</label>

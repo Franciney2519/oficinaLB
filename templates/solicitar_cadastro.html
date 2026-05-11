@@ -95,6 +95,7 @@
       </p>
 
       <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="mb-3">
           <label class="form-label">Nome completo</label>
           <input type="text" name="nome" class="form-control" required value="{{ form_data.nome or '' }}">
@@ -119,19 +120,19 @@
         <div class="mb-3">
           <label class="form-label">Senha</label>
           <div class="input-group">
-            <input type="password" name="senha" id="campo-senha" class="form-control" required minlength="6" autocomplete="new-password">
+            <input type="password" name="senha" id="campo-senha" class="form-control" required minlength="8" autocomplete="new-password">
             <button class="btn btn-toggle-senha" type="button"
                     data-target="campo-senha" data-icon="icone-senha"
                     aria-label="Mostrar senha" title="Mostrar/ocultar senha">
               <i class="bi bi-eye" id="icone-senha"></i>
             </button>
           </div>
-          <div class="form-text">Mínimo 6 caracteres.</div>
+          <div class="form-text">Mínimo 8 caracteres, com pelo menos uma letra e um número.</div>
         </div>
         <div class="mb-4">
           <label class="form-label">Confirmar senha</label>
           <div class="input-group">
-            <input type="password" name="senha_confirmacao" id="campo-confirmacao" class="form-control" required minlength="6" autocomplete="new-password">
+            <input type="password" name="senha_confirmacao" id="campo-confirmacao" class="form-control" required minlength="8" autocomplete="new-password">
             <button class="btn btn-toggle-senha" type="button"
                     data-target="campo-confirmacao" data-icon="icone-confirmacao"
                     aria-label="Mostrar senha" title="Mostrar/ocultar senha">

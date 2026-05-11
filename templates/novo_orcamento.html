@@ -7,6 +7,7 @@
       <div class="card-body">
         <h5 class="card-title">Criar novo orçamento</h5>
         <form method="post" id="formOrcamento">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
           <div class="mb-3">
             <label class="form-label fw-semibold">Cliente</label>

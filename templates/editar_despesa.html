@@ -7,6 +7,7 @@
       <div class="card-body">
         <h5 class="card-title">Editar despesa</h5>
         <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="mb-3">
             <label class="form-label">Data</label>
             <input type="date" name="data_saida" value="{{ entry.data or '' }}" class="form-control" required>

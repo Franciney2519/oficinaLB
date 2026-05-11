@@ -132,11 +132,14 @@
                 </span>
               </span>
             {% endif %}
-            <form action="{{ url_for('atualizar_base') }}" method="post" class="mb-0">
-              <button class="btn btn-outline-light btn-sm w-100" type="submit" title="Recarrega os dados salvos nos arquivos.">
-                Atualizar base
-              </button>
-            </form>
+            {% if is_admin %}
+              <form action="{{ url_for('atualizar_base') }}" method="post" class="mb-0">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-outline-light btn-sm w-100" type="submit" title="Recarrega os dados salvos nos arquivos.">
+                  Atualizar base
+                </button>
+              </form>
+            {% endif %}
             <a href="{{ url_for('landing') }}" class="btn btn-outline-light btn-sm" title="Voltar para a tela inicial/stand-by">
               Tela inicial
             </a>

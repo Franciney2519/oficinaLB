@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
 import unicodedata
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -69,6 +70,7 @@ SOLICITACOES_CADASTRO_COLUMNS = [
     "status", "data_solicitacao", "data_decisao", "decidido_por",
     "motivo_reprovacao",
 ]
+SECURITY_RATE_LIMIT_COLUMNS = ["rate_key", "fail_count", "blocked_until", "updated_at"]
 
 
 def _get_conn():
@@ -207,6 +209,14 @@ def init_db() -> None:
                 "CREATE INDEX IF NOT EXISTS solicitacoes_status_idx "
                 "ON solicitacoes_cadastro (status)"
             )
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS security_rate_limits (
+                    rate_key      TEXT PRIMARY KEY,
+                    fail_count    INTEGER NOT NULL DEFAULT 0,
+                    blocked_until DOUBLE PRECISION NOT NULL DEFAULT 0,
+                    updated_at    TIMESTAMP DEFAULT NOW()
+                )
+            """)
             # Migra carros já cadastrados nos clientes para a tabela veiculos (executa só uma vez)
             cur.execute("""
                 INSERT INTO veiculos (id_cliente, marca, modelo, ano, placa)
@@ -741,6 +751,86 @@ def deduplicate_employees() -> int:
             deleted = cur.rowcount
         conn.commit()
         return deleted
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+# ---------------------------
+# Rate limit de segurança
+# ---------------------------
+
+def get_rate_limit_state(rate_key: str) -> Optional[Dict]:
+    if not rate_key:
+        return None
+    conn = _get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT rate_key, fail_count AS count, blocked_until, updated_at "
+                "FROM security_rate_limits WHERE rate_key = %s",
+                (rate_key,),
+            )
+            row = cur.fetchone()
+            return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def clear_rate_limit_state(rate_key: str) -> None:
+    if not rate_key:
+        return
+    conn = _get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM security_rate_limits WHERE rate_key = %s", (rate_key,))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def record_rate_limit_failure(rate_key: str, max_attempts: int, block_seconds: int) -> Dict:
+    """Registra falha em tabela compartilhada entre workers."""
+    if not rate_key:
+        return {"count": 0, "blocked_until": 0.0}
+    now = time.time()
+    conn = _get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT fail_count, blocked_until FROM security_rate_limits "
+                "WHERE rate_key = %s FOR UPDATE",
+                (rate_key,),
+            )
+            row = cur.fetchone()
+            if row and float(row.get("blocked_until") or 0) > now:
+                count = int(row.get("fail_count") or 0)
+                blocked_until = float(row.get("blocked_until") or 0)
+            else:
+                previous_count = int(row.get("fail_count") or 0) if row else 0
+                if row and previous_count >= max_attempts:
+                    previous_count = 0
+                count = previous_count + 1
+                blocked_until = now + block_seconds if count >= max_attempts else 0.0
+
+            cur.execute(
+                """
+                INSERT INTO security_rate_limits (rate_key, fail_count, blocked_until, updated_at)
+                VALUES (%s, %s, %s, NOW())
+                ON CONFLICT (rate_key) DO UPDATE SET
+                    fail_count = EXCLUDED.fail_count,
+                    blocked_until = EXCLUDED.blocked_until,
+                    updated_at = NOW()
+                """,
+                (rate_key, count, blocked_until),
+            )
+        conn.commit()
+        return {"count": count, "blocked_until": blocked_until}
     except Exception:
         conn.rollback()
         raise

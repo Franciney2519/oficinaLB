@@ -172,15 +172,20 @@ document.querySelectorAll('.btn-detalhes').forEach(function(btn) {
 
       // Montar tabela de itens
       var tbody = document.getElementById('det-itens');
-      tbody.innerHTML = '';
+      tbody.replaceChildren();
       (s.itens || []).forEach(function(item) {
         var tr = document.createElement('tr');
-        tr.innerHTML =
-          '<td>' + (item.tipo || '-') + '</td>' +
-          '<td>' + (item.descricao || '-') + '</td>' +
-          '<td>R$ ' + Number(item.valor || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</td>' +
-          '<td>' + (item.responsavel || '-') + '</td>' +
-          '<td>' + (item.observacoes || '-') + '</td>';
+        [
+          item.tipo || '-',
+          item.descricao || '-',
+          'R$ ' + Number(item.valor || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2}),
+          item.responsavel || '-',
+          item.observacoes || '-'
+        ].forEach(function(value) {
+          var td = document.createElement('td');
+          td.textContent = value;
+          tr.appendChild(td);
+        });
         tbody.appendChild(tr);
       });
 

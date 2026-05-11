@@ -52,6 +52,7 @@
       <div class="card-body">
         <h5 class="card-title">Novo cliente</h5>
         <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           {% for field, label in [
             ('nome', 'Nome completo'),
             ('cpf_cnpj', 'CPF/CNPJ'),
