@@ -47,6 +47,47 @@
   </div>
 </div>
 
+<div class="card mb-4">
+  <div class="card-header bg-light fw-semibold">
+    <i class="bi bi-plus-circle me-1"></i>Registrar serviço direto
+  </div>
+  <div class="card-body">
+    <form action="{{ url_for('registrar_servico') }}" method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="row gy-3">
+        <div class="col-md-4">
+          <label class="form-label">Cliente</label>
+          <select name="id_cliente" class="form-select" required>
+            <option value="">Selecione o cliente</option>
+            {% for cliente in clients %}
+              <option value="{{ cliente.id_cliente }}">{{ cliente.nome }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Tipo de serviço</label>
+          <input type="text" name="tipo_servico" class="form-control" placeholder="Ex: Revisão, troca de óleo" required>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Valor</label>
+          <input type="text" name="valor" class="form-control" placeholder="0,00" required>
+        </div>
+        <div class="col-12">
+          <label class="form-label">Descrição</label>
+          <textarea name="descricao_servico" class="form-control" rows="2" placeholder="Descreva o serviço realizado" required></textarea>
+        </div>
+        <div class="col-12">
+          <label class="form-label">Observações</label>
+          <textarea name="observacoes" class="form-control" rows="2" placeholder="Detalhes adicionais, peças usadas, etc."></textarea>
+        </div>
+        <div class="col-12 text-end">
+          <button type="submit" class="btn btn-primary">Enviar para revisão administrativa</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
 <div class="card">
   <div class="card-header bg-light fw-semibold">
     <i class="bi bi-list-check me-1"></i>Histórico dos meus serviços

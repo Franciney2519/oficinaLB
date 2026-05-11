@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+  <div class="col-lg-8">
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Finalizar serviço #{{ service.id_servico }}</h5>
+        <p><strong>Cliente:</strong> {{ client.nome }}</p>
+        <p><strong>Responsável pelo registro:</strong> {{ service.responsavel or 'Não informado' }}</p>
+        <p><strong>Data do registro:</strong> {{ service.data_execucao or '' }}</p>
+
+        <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="mb-3">
+            <label class="form-label">Tipo de serviço</label>
+            <input type="text" name="tipo_servico" class="form-control" value="{{ service.tipo_servico or '' }}" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Descrição do serviço</label>
+            <textarea name="descricao_servico" class="form-control" rows="3" required>{{ service.descricao_servico or '' }}</textarea>
+          </div>
+          <div class="mb-3 row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Valor do serviço</label>
+              <input type="text" name="valor" class="form-control" value="{{ service.valor or '' }}" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Forma de pagamento</label>
+              <select name="forma_pagamento" class="form-select" required>
+                {% for option in payment_options %}
+                  <option value="{{ option }}">{{ option }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Observações</label>
+            <textarea name="observacoes" class="form-control" rows="2">{{ service.observacoes or '' }}</textarea>
+          </div>
+          <div class="mb-3 row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Custo da peça / material (opcional)</label>
+              <input type="text" name="produto_valor" class="form-control" placeholder="0,00">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Descrição da peça / material</label>
+              <input type="text" name="produto_descricao" class="form-control" placeholder="Ex: Óleo 5W30, pastilha de freio">
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Data de conclusão</label>
+            <input type="date" name="data_conclusao" class="form-control" value="{{ today_str }}" required>
+          </div>
+          <button type="submit" class="btn btn-success">Finalizar serviço</button>
+          <a href="{{ url_for('historico_servicos') }}" class="btn btn-outline-secondary ms-2">Cancelar</a>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

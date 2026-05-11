@@ -9,7 +9,9 @@
     <i class="bi bi-check-lg text-white" style="font-size:2.2rem;"></i>
   </div>
   <h2 class="fw-bold text-success mb-1">Pagamento Concluído!</h2>
-  <p class="text-muted mb-0">Orçamento <strong>#{{ budget_id }}</strong> finalizado com sucesso.</p>
+  {% set label = entity_label if entity_label is defined else 'Orçamento' %}
+  {% set id_number = entity_id if entity_id is defined else budget_id %}
+  <p class="text-muted mb-0">{{ label }} <strong>#{{ id_number }}</strong> finalizado com sucesso.</p>
 </div>
 
 <div class="row justify-content-center g-3">
@@ -48,13 +50,13 @@
 
     <!-- Ações -->
     <div class="d-flex flex-wrap gap-2 mb-3">
-      <a href="{{ url_for('gerar_recibo', budget_id=budget_id) }}" class="btn btn-primary">
+      <a href="{{ receipt_url if receipt_url is defined else url_for('gerar_recibo', budget_id=budget_id) }}" class="btn btn-primary">
         <i class="bi bi-download me-1"></i>Baixar comprovante
       </a>
       <a href="https://wa.me/?text={{ texto_whatsapp|urlencode }}" target="_blank" class="btn btn-success">
         <i class="bi bi-whatsapp me-1"></i>Enviar via WhatsApp
       </a>
-      <a href="{{ url_for('detalhes_orcamento', budget_id=budget_id) }}" class="btn btn-outline-secondary">
+      <a href="{{ details_url if details_url is defined else url_for('detalhes_orcamento', budget_id=budget_id) }}" class="btn btn-outline-secondary">
         Ver detalhes
       </a>
       <a href="{{ url_for('listar_orcamentos') }}" class="btn btn-outline-dark">

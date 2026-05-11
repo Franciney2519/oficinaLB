@@ -70,10 +70,17 @@
                 </span>
               </td>
               <td>
-                <button class="btn btn-sm btn-outline-primary btn-detalhes"
-                  data-info='{{ s | tojson }}'>
-                  Detalhes ({{ s.itens | length }})
-                </button>
+                <div class="d-flex gap-2">
+                  <button class="btn btn-sm btn-outline-primary btn-detalhes"
+                    data-info='{{ s | tojson }}'>
+                    Detalhes ({{ s.itens | length }})
+                  </button>
+                  {% if not s.budget_id and s.service_id and s.status|lower == 'pendente' %}
+                    <a href="{{ url_for('finalizar_servico', service_id=s.service_id) }}" class="btn btn-sm btn-success">
+                      Finalizar
+                    </a>
+                  {% endif %}
+                </div>
               </td>
             </tr>
           {% else %}
@@ -160,7 +167,7 @@ document.querySelectorAll('.btn-detalhes').forEach(function(btn) {
       var s = JSON.parse(this.dataset.info);
 
       document.getElementById('modalDetalhesLabel').textContent =
-        'Detalhes do Orçamento' + (s.budget_id ? ' #' + s.budget_id : '');
+        (s.budget_id ? 'Detalhes do Orçamento #' + s.budget_id : 'Detalhes do Serviço #' + s.service_id);
       document.getElementById('det-cliente').textContent = s.client_name || '-';
       document.getElementById('det-veiculo').textContent = s.veiculo_info || '-';
       document.getElementById('det-data').textContent    = s.service_date || '-';

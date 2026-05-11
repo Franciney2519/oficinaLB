@@ -1639,6 +1639,8 @@ def meus_servicos():
             "valor": float(row.get("valor_num") or 0),
         })
 
+    clients_df = dal.get_all_clients().fillna("")
+    clients = clients_df.to_dict(orient="records")
     return render_template(
         "meus_servicos.html",
         nome_logado=nome_logado,
@@ -1647,8 +1649,216 @@ def meus_servicos():
         valor_total=valor_total,
         valor_mes=valor_mes,
         services=services_list,
+        clients=clients,
         mes_atual=MONTH_NAMES[today.month - 1],
         ano_atual=today.year,
+    )
+
+
+@app.route("/meus-servicos/registrar", methods=["POST"])
+def registrar_servico():
+    nome_logado = session.get("user_name") or ""
+    if not nome_logado:
+        flash("É necessário estar logado para registrar um serviço.", "danger")
+        return redirect(url_for("meus_servicos"))
+
+    try:
+        id_cliente = int(request.form.get("id_cliente", ""))
+    except (TypeError, ValueError):
+        id_cliente = None
+
+    descricao = request.form.get("descricao_servico", "").strip()
+    tipo = request.form.get("tipo_servico", "").strip()
+    valor_raw = request.form.get("valor", "").strip()
+    observacoes = request.form.get("observacoes", "").strip()
+
+    if not id_cliente:
+        flash("Selecione um cliente para o serviço.", "warning")
+        return redirect(url_for("meus_servicos"))
+    cliente = dal.get_client_by_id(id_cliente)
+    if not cliente:
+        flash("Cliente selecionado não encontrado.", "danger")
+        return redirect(url_for("meus_servicos"))
+    if not descricao:
+        flash("Informe a descrição do serviço.", "warning")
+        return redirect(url_for("meus_servicos"))
+    if not tipo:
+        flash("Informe o tipo do serviço.", "warning")
+        return redirect(url_for("meus_servicos"))
+    try:
+        valor = _parse_brl_number(valor_raw)
+    except ValueError:
+        flash("Informe um valor válido para o serviço.", "warning")
+        return redirect(url_for("meus_servicos"))
+
+    dal.add_service(
+        {
+            "id_cliente": id_cliente,
+            "data_execucao": datetime.today().strftime("%Y-%m-%d"),
+            "descricao_servico": descricao,
+            "tipo_servico": tipo,
+            "valor": round(valor, 2),
+            "observacoes": observacoes,
+            "responsavel": nome_logado,
+            "status": "Pendente",
+        }
+    )
+    flash(
+        "Serviço registrado com sucesso. Aguarde a revisão do administrador para gerar o comprovante e o lançamento financeiro.",
+        "success",
+    )
+    return redirect(url_for("meus_servicos"))
+
+
+@app.route("/servicos/<int:service_id>/finalizar", methods=["GET", "POST"])
+@require_admin
+def finalizar_servico(service_id: int):
+    service = dal.get_service_by_id(service_id)
+    if not service:
+        flash("Serviço não encontrado.", "danger")
+        return redirect(url_for("historico_servicos"))
+
+    cliente = None
+    if service.get("id_cliente") is not None:
+        cliente = dal.get_client_by_id(int(service["id_cliente"]))
+    if not cliente:
+        flash("Cliente associado ao serviço não foi encontrado.", "warning")
+        return redirect(url_for("historico_servicos"))
+
+    if request.method == "POST":
+        descricao = request.form.get("descricao_servico", "").strip()
+        tipo = request.form.get("tipo_servico", "").strip()
+        valor_raw = request.form.get("valor", "").strip()
+        observacoes = request.form.get("observacoes", "").strip()
+        produto_descricao = request.form.get("produto_descricao", "").strip()
+        produto_valor_raw = request.form.get("produto_valor", "").strip()
+        forma_pagamento = request.form.get("forma_pagamento", "PIX")
+        data_conclusao = request.form.get("data_conclusao", datetime.today().strftime("%Y-%m-%d"))
+
+        if forma_pagamento not in PAYMENT_OPTIONS:
+            flash("Escolha uma forma de pagamento válida.", "warning")
+            return redirect(url_for("finalizar_servico", service_id=service_id))
+        if not descricao:
+            flash("Informe a descrição do serviço.", "warning")
+            return redirect(url_for("finalizar_servico", service_id=service_id))
+        if not tipo:
+            flash("Informe o tipo do serviço.", "warning")
+            return redirect(url_for("finalizar_servico", service_id=service_id))
+        try:
+            valor = _parse_brl_number(valor_raw)
+        except ValueError:
+            flash("Informe um valor válido para o serviço.", "warning")
+            return redirect(url_for("finalizar_servico", service_id=service_id))
+        try:
+            produto_valor = _parse_brl_number(produto_valor_raw)
+        except ValueError:
+            flash("Informe um valor válido para o custo da peça.", "warning")
+            return redirect(url_for("finalizar_servico", service_id=service_id))
+
+        valor_final = round(valor + produto_valor, 2)
+        data_obj = _parse_date(data_conclusao)
+        if not data_obj:
+            flash("Informe uma data de conclusão válida.", "warning")
+            return redirect(url_for("finalizar_servico", service_id=service_id))
+
+        dal.update_service(service_id, {
+            "descricao_servico": descricao,
+            "tipo_servico": tipo,
+            "valor": round(valor, 2),
+            "observacoes": observacoes,
+            "status": "Concluído",
+            "data_execucao": data_obj.strftime("%Y-%m-%d"),
+            "produto_descricao": produto_descricao,
+            "produto_valor": round(produto_valor, 2) if produto_valor else None,
+        })
+
+        existing_financial_df = dal.get_all_financial_entries()
+        has_entry = False
+        if not existing_financial_df.empty:
+            related_service = pd.to_numeric(
+                existing_financial_df.get("relacionado_servico_id"), errors="coerce"
+            )
+            has_entry = ((related_service == service_id) &
+                         (existing_financial_df["tipo_lancamento"].fillna("").astype(str).str.lower() == "entrada")).any()
+
+        if not has_entry:
+            dal.add_financial_entry({
+                "data": data_obj.strftime("%Y-%m-%d"),
+                "tipo_lancamento": "Entrada",
+                "categoria": "Serviços prestados",
+                "descricao": f"Serviço #{service_id} - {cliente.get('nome', '')}",
+                "valor": valor_final,
+                "relacionado_orcamento_id": None,
+                "relacionado_servico_id": service_id,
+            })
+
+        if produto_descricao and produto_valor > 0:
+            has_exit_entry = False
+            if not existing_financial_df.empty:
+                related_service = pd.to_numeric(
+                    existing_financial_df.get("relacionado_servico_id"), errors="coerce"
+                )
+                desc_col = existing_financial_df["descricao"].fillna("").astype(str)
+                has_exit_entry = (
+                    (related_service == service_id)
+                    & (existing_financial_df["tipo_lancamento"].fillna("").astype(str).str.lower() == "saída")
+                    & desc_col.str.contains(re.escape(produto_descricao), case=False, na=False)
+                ).any()
+            if not has_exit_entry:
+                dal.add_financial_entry({
+                    "data": data_obj.strftime("%Y-%m-%d"),
+                    "tipo_lancamento": "Saída",
+                    "categoria": "Materiais e peças - Componentes automotivos",
+                    "descricao": f"{produto_descricao} - Serviço #{service_id}",
+                    "valor": round(produto_valor, 2),
+                    "relacionado_orcamento_id": None,
+                    "relacionado_servico_id": service_id,
+                })
+
+        texto_whatsapp = _generate_service_payment_whatsapp_text(
+            cliente.get("nome", "cliente"),
+            service_id,
+            valor_final,
+            data_obj,
+        )
+
+        items = [
+            {
+                "descricao": descricao,
+                "quantidade": 1,
+                "valor_unitario": round(valor, 2),
+                "subtotal": round(valor, 2),
+            }
+        ]
+        if produto_descricao and produto_valor > 0:
+            items.append({
+                "descricao": produto_descricao,
+                "quantidade": 1,
+                "valor_unitario": round(produto_valor, 2),
+                "subtotal": round(produto_valor, 2),
+            })
+
+        return render_template(
+            "pagamento_concluido.html",
+            entity_label="Serviço",
+            entity_id=service_id,
+            budget_id=None,
+            client=cliente,
+            items=items,
+            valor_final=valor_final,
+            data_pagamento=data_obj,
+            texto_whatsapp=texto_whatsapp,
+            receipt_url=url_for("gerar_recibo_servico", service_id=service_id),
+            details_url=url_for("historico_servicos"),
+        )
+
+    return render_template(
+        "finalizar_servico.html",
+        service=service,
+        client=cliente,
+        payment_options=PAYMENT_OPTIONS,
+        today_str=datetime.today().strftime("%Y-%m-%d"),
+        taxa_cartao=TAXA_CARTAO_CREDITO,
     )
 
 
@@ -1798,6 +2008,7 @@ def historico_servicos():
                 veiculo_info += f" ({placa})"
             budgets_seen[key] = {
                 "budget_id":    row.get("id_orcamento"),
+                "service_id":   row.get("id_orcamento") or row.get("id_servico"),
                 "client_id":    row.get("id_cliente"),
                 "client_name":  row.get("nome") or "N/D",
                 "service_date": _format_date(row.get("data_execucao")),
@@ -2290,6 +2501,95 @@ def _generate_payment_whatsapp_text(
     return "\n".join(linhas)
 
 
+def _generate_service_payment_whatsapp_text(
+    client_name: str,
+    service_id: int,
+    valor_final: float,
+    data_pagamento: datetime,
+) -> str:
+    """Mensagem curta para confirmar pagamento de serviço via WhatsApp."""
+    linhas = [
+        f"Olá {client_name}, tudo bem?",
+        f"Confirmamos o pagamento do serviço #{service_id}.",
+        f"Valor recebido: R$ {valor_final:.2f}",
+        f"Data: {data_pagamento.strftime('%d/%m/%Y')}",
+        "",
+        "Obrigado pela preferência! Qualquer dúvida é só chamar.",
+    ]
+    return "\n".join(linhas)
+
+
+def _generate_service_receipt_pdf(
+    service_id: int,
+    service: dict,
+    client: dict,
+    items: list,
+    valor_final: float,
+    data_conclusao: datetime,
+) -> BytesIO:
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=18)
+    pdf.add_page()
+
+    pdf.set_font("Arial", "B", 16)
+    pdf.cell(0, 10, f"RECIBO N\u00ba: {service_id}", ln=1)
+    pdf.set_font("Arial", "", 10)
+    pdf.cell(0, 6, COMPANY_INFO.get("razao_social", ""), ln=1)
+    pdf.cell(0, 6, COMPANY_INFO.get("endereco", ""), ln=1)
+    pdf.cell(0, 6, COMPANY_INFO.get("telefone", ""), ln=1)
+    if COMPANY_INFO.get("email"):
+        pdf.cell(0, 6, COMPANY_INFO.get("email"), ln=1)
+    pdf.ln(6)
+
+    pdf.set_font("Arial", "B", 12)
+    pdf.cell(0, 8, "CLIENTE", ln=1)
+    pdf.set_font("Arial", "", 10)
+    pdf.cell(0, 6, client.get("nome", ""), ln=1)
+    pdf.cell(0, 6, f"Telefone: {client.get('telefone_whatsapp', '')}", ln=1)
+    pdf.ln(4)
+
+    pdf.set_font("Arial", "B", 12)
+    pdf.cell(0, 8, "SERVIÇO", ln=1)
+    pdf.set_font("Arial", "", 10)
+    pdf.multi_cell(0, 6, service.get("descricao_servico", ""), border=0)
+    pdf.ln(4)
+
+    pdf.set_font("Arial", "B", 12)
+    pdf.cell(0, 8, "ITENS", ln=1)
+    pdf.set_font("Arial", "", 10)
+    for item in items:
+        descricao = item.get("descricao", "")
+        quantidade = item.get("quantidade", 1)
+        valor_unitario = float(item.get("valor_unitario", 0) or 0)
+        subtotal = float(item.get("subtotal", 0) or 0)
+        pdf.multi_cell(0, 6, f"- {descricao} ({quantidade}x R$ {valor_unitario:.2f}) = R$ {subtotal:.2f}")
+
+    pdf.ln(4)
+    pdf.set_font("Arial", "B", 12)
+    pdf.cell(0, 8, "VALOR TOTAL", ln=1)
+    pdf.set_font("Arial", "", 10)
+    pdf.cell(0, 6, f"R$ {valor_final:.2f}", ln=1)
+    pdf.ln(4)
+
+    pdf.set_font("Arial", "B", 12)
+    pdf.cell(0, 8, "DADOS", ln=1)
+    pdf.set_font("Arial", "", 10)
+    pdf.cell(0, 6, f"Data: {data_conclusao.strftime('%d/%m/%Y')}", ln=1)
+    pdf.cell(0, 6, f"Responsável: {service.get('responsavel', '')}", ln=1)
+    pdf.ln(8)
+
+    pdf.set_font("Arial", "I", 9)
+    pdf.multi_cell(
+        0,
+        5,
+        "Este recibo comprova o pagamento do serviço informado. Qualquer dúvida, entre em contato com a oficina.",
+    )
+
+    buffer = BytesIO(pdf.output(dest="S").encode("latin-1", errors="replace"))
+    buffer.seek(0)
+    return buffer
+
+
 def _load_vehicles_by_client(clients: list) -> dict:
     """Monta dict {str(id_cliente): [veiculos]} incluindo fallback de campos legados."""
     vmap = _build_vehicles_map()
@@ -2642,6 +2942,60 @@ def gerar_recibo(budget_id: int):
         veiculo=veiculo,
     )
     filename = f"recibo_{budget_id}_{_slugify_filename(client.get('nome', ''))}.pdf"
+    pdf_buffer.seek(0)
+    return send_file(
+        pdf_buffer,
+        as_attachment=True,
+        download_name=filename,
+        mimetype="application/pdf",
+    )
+
+
+@app.route("/servicos/<int:service_id>/recibo")
+def gerar_recibo_servico(service_id: int):
+    service = dal.get_service_by_id(service_id)
+    if not service:
+        flash("Serviço não encontrado.", "danger")
+        return redirect(url_for("historico_servicos"))
+    if str(service.get("status") or "").lower() != "concluído":
+        flash("O recibo só está disponível para serviços concluídos.", "warning")
+        return redirect(url_for("historico_servicos"))
+
+    client = dal.get_client_by_id(int(service.get("id_cliente"))) if service.get("id_cliente") else None
+    if not client:
+        flash("Cliente associado ao serviço não foi localizado.", "warning")
+        return redirect(url_for("historico_servicos"))
+
+    valor_final = float(service.get("valor") or 0)
+    items = [
+        {
+            "descricao": service.get("descricao_servico", "Serviço"),
+            "quantidade": 1,
+            "valor_unitario": float(service.get("valor") or 0),
+            "subtotal": float(service.get("valor") or 0),
+        }
+    ]
+    produto_descricao = service.get("produto_descricao")
+    produto_valor = float(service.get("produto_valor") or 0)
+    if produto_descricao and produto_valor > 0:
+        items.append({
+            "descricao": produto_descricao,
+            "quantidade": 1,
+            "valor_unitario": produto_valor,
+            "subtotal": produto_valor,
+        })
+        valor_final += produto_valor
+
+    data_conclusao = _parse_date(service.get("data_execucao")) or datetime.today()
+    pdf_buffer = _generate_service_receipt_pdf(
+        service_id=service_id,
+        service=service,
+        client=client,
+        items=items,
+        valor_final=valor_final,
+        data_conclusao=data_conclusao,
+    )
+    filename = f"recibo_servico_{service_id}_{_slugify_filename(client.get('nome', ''))}.pdf"
     pdf_buffer.seek(0)
     return send_file(
         pdf_buffer,
