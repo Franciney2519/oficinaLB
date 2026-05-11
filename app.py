@@ -19,7 +19,7 @@ import re
 import sys
 import time
 from datetime import datetime
-from urllib.parse import urljoin, urlparse
+from urllib.parse import quote, urljoin, urlparse
 
 # Carrega variáveis do .env em desenvolvimento local
 try:
@@ -111,7 +111,11 @@ csrf = CSRFProtect(app)
 def handle_csrf_error(error):
     app.logger.warning("CSRF bloqueado em %s: %s", request.path, error.description)
     flash("Sessao expirada ou formulario invalido. Recarregue a pagina e tente novamente.", "danger")
-    return redirect(url_for("login" if not session.get("logged_in") else "listar_orcamentos"))
+    if not session.get("logged_in"):
+        return redirect(url_for("login"))
+    if session.get("role") == ROLE_ADMIN:
+        return redirect(url_for("dashboard"))
+    return redirect(url_for("meus_servicos"))
 
 _DEFAULT_APP_USERNAME = "admin"
 _DEFAULT_APP_PASSWORD = "oficina123"
@@ -158,7 +162,7 @@ def require_admin(view):
     def wrapped(*args, **kwargs):
         if session.get("role") != ROLE_ADMIN:
             flash("Acesso restrito ao administrador.", "danger")
-            return redirect(url_for("listar_orcamentos"))
+            return redirect(url_for("meus_servicos"))
         return view(*args, **kwargs)
     return wrapped
 
@@ -329,7 +333,7 @@ def login():
             _clear_rate_limit("login", ip)
             session.clear()
             session.update(auth)
-            landing_endpoint = "dashboard" if auth["role"] == ROLE_ADMIN else "listar_orcamentos"
+            landing_endpoint = "dashboard" if auth["role"] == ROLE_ADMIN else "meus_servicos"
             return redirect(url_for(landing_endpoint))
         _register_login_failure(ip)
         blocked, remaining = _is_login_blocked(ip)
@@ -776,6 +780,30 @@ def _slugify_filename(value: str) -> str:
     ascii_text = "".join(ch for ch in normalized if not unicodedata.combining(ch))
     safe = "".join(ch if ch.isalnum() else "_" for ch in ascii_text).strip("_")
     return safe.lower() or "recibo"
+
+
+def _normalize_whatsapp_number(value: str) -> Optional[str]:
+    """Retorna um número de WhatsApp pronto para wa.me, com DDI se possível."""
+    if not value:
+        return None
+    digits = re.sub(r"\D+", "", str(value))
+    if not digits:
+        return None
+    digits = digits.lstrip("0")
+    if digits.startswith("55") and len(digits) >= 11:
+        return digits
+    if len(digits) in {10, 11}:
+        return f"55{digits}"
+    return digits if len(digits) >= 11 else None
+
+
+def _build_whatsapp_url(phone: str, text: str) -> str:
+    """Constrói um link do WhatsApp para o cliente ou retorna o link genérico se não houver telefone."""
+    encoded_text = quote(text or "")
+    normalized_phone = _normalize_whatsapp_number(phone)
+    if normalized_phone:
+        return f"https://wa.me/{normalized_phone}?text={encoded_text}"
+    return f"https://wa.me/?text={encoded_text}"
 
 
 def _format_date(date_value) -> str:
@@ -1821,6 +1849,7 @@ def finalizar_servico(service_id: int):
             valor_final,
             data_obj,
         )
+        whatsapp_url = _build_whatsapp_url(cliente.get("telefone_whatsapp", ""), texto_whatsapp)
 
         items = [
             {
@@ -1848,6 +1877,7 @@ def finalizar_servico(service_id: int):
             valor_final=valor_final,
             data_pagamento=data_obj,
             texto_whatsapp=texto_whatsapp,
+            whatsapp_url=whatsapp_url,
             receipt_url=url_for("gerar_recibo_servico", service_id=service_id),
             details_url=url_for("historico_servicos"),
         )
@@ -2660,6 +2690,7 @@ def novo_orcamento():
         texto_whatsapp = _generate_whatsapp_text(
             client["nome"], items, total, payment_method, taxa
         )
+        whatsapp_url = _build_whatsapp_url(client.get("telefone_whatsapp", ""), texto_whatsapp)
 
         data = {
             "id_cliente":                client_id,
@@ -2689,6 +2720,7 @@ def novo_orcamento():
             taxa=taxa,
             forma_pagamento=payment_method,
             texto_whatsapp=texto_whatsapp,
+            whatsapp_url=whatsapp_url,
         )
 
     return render_template(

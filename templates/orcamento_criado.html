@@ -39,7 +39,7 @@
       <a href="{{ url_for('gerar_pdf_orcamento', budget_id=orcamento_id) }}" class="btn btn-outline-secondary">
         <i class="bi bi-download me-1"></i>Baixar PDF
       </a>
-      <a href="https://wa.me/?text={{ texto_whatsapp|urlencode }}" target="_blank" class="btn btn-success">
+      <a href="{{ whatsapp_url if whatsapp_url is defined else 'https://wa.me/?text=' ~ texto_whatsapp|urlencode }}" target="_blank" class="btn btn-success">
         <i class="bi bi-whatsapp me-1"></i>Enviar via WhatsApp
       </a>
       <a href="{{ url_for('listar_orcamentos') }}" class="btn btn-outline-dark">Ver todos os orçamentos</a>

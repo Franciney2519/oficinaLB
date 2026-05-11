@@ -53,7 +53,7 @@
       <a href="{{ receipt_url if receipt_url is defined else url_for('gerar_recibo', budget_id=budget_id) }}" class="btn btn-primary">
         <i class="bi bi-download me-1"></i>Baixar comprovante
       </a>
-      <a href="https://wa.me/?text={{ texto_whatsapp|urlencode }}" target="_blank" class="btn btn-success">
+      <a href="{{ whatsapp_url if whatsapp_url is defined else 'https://wa.me/?text=' ~ texto_whatsapp|urlencode }}" target="_blank" class="btn btn-success">
         <i class="bi bi-whatsapp me-1"></i>Enviar via WhatsApp
       </a>
       <a href="{{ details_url if details_url is defined else url_for('detalhes_orcamento', budget_id=budget_id) }}" class="btn btn-outline-secondary">
