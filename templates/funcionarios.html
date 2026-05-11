@@ -58,7 +58,7 @@
                     {% endif %}
                   </td>
                   <td class="text-end">
-                    <button class="btn btn-sm btn-outline-primary me-1"
+                    <button type="button" class="btn btn-sm btn-outline-primary me-1"
                       onclick="editarFuncionario(
                         {{ f.id_funcionario }},
                         {{ f.nome | tojson }},
@@ -68,7 +68,7 @@
                         {{ (f.usuario or '') | tojson }},
                         {{ (f.perfil or 'mecanico') | tojson }},
                         {{ (f.senha_hash|string|length > 0) | tojson }}
-                      )">
+                      ); return false;">
                       Editar
                     </button>
                     <form action="{{ url_for('toggle_funcionario', employee_id=f.id_funcionario) }}" method="post" class="d-inline">
