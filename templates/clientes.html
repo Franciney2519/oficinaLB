@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+  <div class="col-lg-8">
+    <div class="card mb-4">
+      <div class="card-body">
+        <h5 class="card-title">Clientes cadastrados</h5>
+        <div class="table-responsive">
+          <table class="table table-striped">
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>CPF/CNPJ</th>
+                <th>WhatsApp</th>
+                <th>Veículos</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for cliente in clients %}
+                <tr>
+                  <td>{{ cliente.nome }}</td>
+                  <td>{{ cliente.cpf_cnpj }}</td>
+                  <td>{{ cliente.telefone_whatsapp }}</td>
+                  <td>
+                    {% for v in cliente.veiculos %}
+                      <span class="badge bg-secondary me-1">{{ v.marca }} {{ v.modelo }} {{ v.ano }}{% if v.placa %} — {{ v.placa }}{% endif %}</span>
+                    {% else %}
+                      <span class="text-muted small">Nenhum</span>
+                    {% endfor %}
+                  </td>
+                  <td>
+                    <a href="{{ url_for('editar_cliente', client_id=cliente.id_cliente) }}" class="btn btn-sm btn-primary">Editar cadastro/veículos</a>
+                    <a href="{{ url_for('historico_cliente', client_id=cliente.id_cliente) }}" class="btn btn-sm btn-secondary">Histórico</a>
+                  </td>
+                </tr>
+              {% else %}
+                <tr>
+                  <td colspan="5" class="text-center">Nenhum cliente cadastrado.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title">Novo cliente</h5>
+        <form method="post">
+          {% for field, label in [
+            ('nome', 'Nome completo'),
+            ('cpf_cnpj', 'CPF/CNPJ'),
+            ('telefone_whatsapp', 'Telefone/WhatsApp'),
+            ('email', 'Email'),
+            ('endereco_rua', 'Rua'),
+            ('endereco_numero', 'Número'),
+            ('endereco_bairro', 'Bairro'),
+            ('endereco_cidade', 'Cidade'),
+            ('endereco_uf', 'UF'),
+            ('endereco_cep', 'CEP')
+          ] %}
+            <div class="mb-2">
+              <label class="form-label">{{ label }}</label>
+              <input type="text"
+                     name="{{ field }}"
+                     class="form-control{% if field == 'cpf_cnpj' %} cpf-cnpj-mask{% endif %}"
+                     {% if field == 'cpf_cnpj' %}inputmode="numeric" maxlength="18" placeholder="CPF ou CNPJ" autocomplete="off"{% endif %}
+                     {% if field == 'nome' %}required{% endif %}>
+            </div>
+          {% endfor %}
+
+          <hr class="my-3">
+          <h6 class="fw-semibold mb-2">Veículos</h6>
+          <div id="listaVeiculos">
+            <div class="veiculo-row border rounded p-2 mb-2 position-relative">
+              <div class="row g-1">
+                <div class="col-6"><input type="text" name="carro_marca[]" class="form-control form-control-sm" placeholder="Marca"></div>
+                <div class="col-6"><input type="text" name="carro_modelo[]" class="form-control form-control-sm" placeholder="Modelo"></div>
+                <div class="col-4"><input type="text" name="carro_ano[]" class="form-control form-control-sm" placeholder="Ano"></div>
+                <div class="col-4"><input type="text" name="carro_placa[]" class="form-control form-control-sm" placeholder="Placa"></div>
+                <div class="col-4"><input type="text" name="carro_cor[]" class="form-control form-control-sm" placeholder="Cor"></div>
+              </div>
+            </div>
+          </div>
+          <button type="button" class="btn btn-outline-secondary btn-sm w-100 mb-3" id="btnAddVeiculo">+ Adicionar outro veículo</button>
+
+          <div class="mb-3">
+            <label class="form-label">Observações</label>
+            <textarea name="observacoes" class="form-control" rows="2"></textarea>
+          </div>
+          <button type="submit" class="btn btn-success w-100">Cadastrar</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('btnAddVeiculo').addEventListener('click', function() {
+  const lista = document.getElementById('listaVeiculos');
+  const div = document.createElement('div');
+  div.className = 'veiculo-row border rounded p-2 mb-2 position-relative';
+  div.innerHTML = `
+    <button type="button" class="btn-close position-absolute top-0 end-0 m-1 btn-remover-veiculo" aria-label="Remover"></button>
+    <div class="row g-1">
+      <div class="col-6"><input type="text" name="carro_marca[]" class="form-control form-control-sm" placeholder="Marca"></div>
+      <div class="col-6"><input type="text" name="carro_modelo[]" class="form-control form-control-sm" placeholder="Modelo"></div>
+      <div class="col-4"><input type="text" name="carro_ano[]" class="form-control form-control-sm" placeholder="Ano"></div>
+      <div class="col-4"><input type="text" name="carro_placa[]" class="form-control form-control-sm" placeholder="Placa"></div>
+      <div class="col-4"><input type="text" name="carro_cor[]" class="form-control form-control-sm" placeholder="Cor"></div>
+    </div>`;
+  div.querySelector('.btn-remover-veiculo').addEventListener('click', () => div.remove());
+  lista.appendChild(div);
+});
+</script>
+{% endblock %}

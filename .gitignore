@@ -1,0 +1,32 @@
+
+# Python / build
+__pycache__/
+*.py[cod]
+*.pyd
+*.pyo
+*.py.cache
+.Python
+
+# Environments
+.env
+.venv
+env/
+venv/
+
+# Build artifacts
+build/
+dist/
+
+# Local data/cache
+*.log
+*.tmp
+__logo_cache.png
+dist.zip
+
+# Office data files (planilhas locais)
+dados_clientes.xlsx
+dados_financeiro.xlsx
+dados_orcamentos.xlsx
+dados_servicos.xlsx
+# Arquivo SQL local de apoio (não versionar)
+supabase_rls_policies_minimas.sql

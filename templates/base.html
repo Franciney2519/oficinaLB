@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="pt-br">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ company_info.razao_social }} - PDV</title>
+    <link rel="icon" type="image/x-icon" href="{{ url_for('favicon') }}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+      body {
+        padding-top: 70px;
+        background-color: #f5f6fa;
+      }
+      textarea { resize: vertical; }
+
+      /* Sombra suave global nos cards */
+      .card {
+        box-shadow: 0 2px 8px rgba(0,0,0,.07);
+        border: 1px solid rgba(0,0,0,.08);
+      }
+
+      /* Navbar com gradiente sutil */
+      .navbar { background: linear-gradient(90deg, #1a1a2e 0%, #16213e 100%) !important; }
+
+      /* Link ativo no menu */
+      .nav-link.active-page {
+        color: #fff !important;
+        font-weight: 600;
+        border-bottom: 2px solid #0d6efd;
+      }
+
+      /* Área principal com respiro */
+      main.container { padding-top: 1.5rem; padding-bottom: 3rem; }
+
+      /* Rodapé */
+      body::after {
+        content: '{{ company_info.razao_social }} · Sistema de Gestão';
+        display: block;
+        text-align: center;
+        font-size: .78rem;
+        color: #adb5bd;
+        padding: .75rem 0 1rem;
+      }
+
+      /* Transição suave nos botões */
+      .btn { transition: transform .1s, box-shadow .1s; }
+      .btn:active { transform: scale(.97); }
+    </style>
+  </head>
+  <body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+      <div class="container-fluid">
+        <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('dashboard') }}">
+          <img src="{{ url_for('favicon') }}" alt="{{ company_info.razao_social }}" style="height:32px;width:32px;">
+          <span>{{ company_info.razao_social }}</span>
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+            {% set ep = request.endpoint %}
+            {% set is_admin = session.get('role') == 'admin' %}
+            {% if is_admin %}
+            <li class="nav-item">
+              <a class="nav-link {% if ep == 'dashboard' %}active-page{% endif %}" href="{{ url_for('dashboard') }}">
+                <i class="bi bi-speedometer2 me-1"></i>Dashboard
+              </a>
+            </li>
+            {% endif %}
+            <li class="nav-item">
+              <a class="nav-link {% if ep == 'clientes' or ep == 'editar_cliente' %}active-page{% endif %}" href="{{ url_for('clientes') }}">
+                <i class="bi bi-people me-1"></i>Clientes
+              </a>
+            </li>
+            {% if is_admin %}
+            <li class="nav-item">
+              <a class="nav-link {% if ep == 'funcionarios' %}active-page{% endif %}" href="{{ url_for('funcionarios') }}">
+                <i class="bi bi-person-badge me-1"></i>Funcionários
+              </a>
+            </li>
+            {% endif %}
+            <li class="nav-item">
+              <a class="nav-link {% if ep == 'historico_servicos' %}active-page{% endif %}" href="{{ url_for('historico_servicos') }}">
+                <i class="bi bi-clock-history me-1"></i>Histórico
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link {% if ep in ('listar_orcamentos','novo_orcamento','editar_orcamento','detalhes_orcamento','efetivar_orcamento') %}active-page{% endif %}" href="{{ url_for('listar_orcamentos') }}">
+                <i class="bi bi-file-earmark-text me-1"></i>Orçamentos
+              </a>
+            </li>
+            {% if is_admin %}
+            <li class="nav-item">
+              <a class="nav-link {% if ep == 'financeiro' or ep == 'editar_despesa_financeira' %}active-page{% endif %}" href="{{ url_for('financeiro') }}">
+                <i class="bi bi-cash-stack me-1"></i>Financeiro
+              </a>
+            </li>
+            {% endif %}
+            <li class="nav-item">
+              <a class="nav-link {% if ep == 'ajuda' %}active-page{% endif %}" href="{{ url_for('ajuda') }}">
+                <i class="bi bi-question-circle me-1"></i>Ajuda
+              </a>
+            </li>
+          </ul>
+          <div class="d-grid gap-2 d-lg-flex align-items-lg-center mt-2 mt-lg-0">
+            {% if session.get('user_name') %}
+              <span class="text-light small me-lg-2" title="Usuário autenticado">
+                <i class="bi bi-person-circle me-1"></i>{{ session.get('user_name') }}
+                <span class="badge text-bg-{{ 'primary' if is_admin else 'secondary' }} ms-1">
+                  {{ 'Admin' if is_admin else 'Mecânico' }}
+                </span>
+              </span>
+            {% endif %}
+            <form action="{{ url_for('atualizar_base') }}" method="post" class="mb-0">
+              <button class="btn btn-outline-light btn-sm w-100" type="submit" title="Recarrega os dados salvos nos arquivos.">
+                Atualizar base
+              </button>
+            </form>
+            <a href="{{ url_for('landing') }}" class="btn btn-outline-light btn-sm" title="Voltar para a tela inicial/stand-by">
+              Tela inicial
+            </a>
+            <a href="{{ url_for('novo_orcamento') }}" class="btn btn-success">Novo Orçamento</a>
+            <a href="{{ url_for('logout') }}" class="btn btn-outline-danger btn-sm">Sair</a>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <main class="container">
+      {% with messages = get_flashed_messages(with_categories=True) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      {% block content %}{% endblock %}
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      function formatCpfCnpj(value) {
+        const digits = (value || '').replace(/\D/g, '').slice(0, 14);
+        if (digits.length > 11) {
+          return digits
+            .replace(/^(\d{2})(\d)/, '$1.$2')
+            .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+            .replace(/\.(\d{3})(\d)/, '.$1/$2')
+            .replace(/(\d{4})(\d)/, '$1-$2');
+        }
+
+        return digits
+          .replace(/^(\d{3})(\d)/, '$1.$2')
+          .replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
+          .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+      }
+
+      function applyCpfCnpjMask(input) {
+        input.value = formatCpfCnpj(input.value);
+      }
+
+      document.addEventListener('input', function(event) {
+        if (event.target.classList.contains('cpf-cnpj-mask')) {
+          applyCpfCnpjMask(event.target);
+        }
+      });
+
+      document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.cpf-cnpj-mask').forEach(applyCpfCnpjMask);
+      });
+    </script>
+    {% block scripts %}{% endblock %}
+  </body>
+</html>

@@ -1,0 +1,15 @@
+# Web app
+flask==3.1.2
+gunicorn==23.0.0
+
+# Banco de dados PostgreSQL
+psycopg2-binary==2.9.10
+
+# Dados e relatórios
+pandas==2.2.3
+openpyxl==3.1.5
+fpdf==1.7.2
+pillow==11.3.0
+
+# Variáveis de ambiente (desenvolvimento local)
+python-dotenv==1.1.0

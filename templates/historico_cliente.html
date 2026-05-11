@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h3>Histórico de serviços - {{ client.nome }}</h3>
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label">Data inicial</label>
+        <input type="date" name="data_inicio" class="form-control" value="{{ data_inicio }}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Data final</label>
+        <input type="date" name="data_fim" class="form-control" value="{{ data_fim }}">
+      </div>
+      <div class="col-md-4 d-flex align-items-end">
+        <button type="submit" class="btn btn-primary w-100">Filtrar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-striped">
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Descrição</th>
+            <th>Tipo</th>
+            <th>Valor</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for servico in services %}
+            <tr>
+              <td>{{ servico.data_formatada }}</td>
+              <td>{{ servico.descricao_servico }}</td>
+              <td>{{ servico.tipo_servico }}</td>
+              <td>R$ {{ '%.2f'|format(servico.valor or 0) }}</td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="4" class="text-center">Nenhum serviço encontrado.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

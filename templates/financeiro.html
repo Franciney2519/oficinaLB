@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+  <div class="col-lg-8">
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Lançamentos financeiros</h5>
+        <form method="get" class="row g-3 mb-3">
+          <div class="col-md-3">
+            <label class="form-label">Data inicial</label>
+            <input type="date" name="data_inicio" value="{{ data_inicio }}" class="form-control">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Data final</label>
+            <input type="date" name="data_fim" value="{{ data_fim }}" class="form-control">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Tipo</label>
+            <select name="tipo" class="form-select">
+              <option value="">Todos</option>
+              <option value="Entrada" {% if tipo == 'Entrada' %}selected{% endif %}>Entrada</option>
+              <option value="Saída" {% if tipo == 'Saída' %}selected{% endif %}>Saída</option>
+            </select>
+          </div>
+          <div class="col-md-3 d-flex align-items-end">
+            <button type="submit" class="btn btn-primary w-100">Filtrar</button>
+          </div>
+        </form>
+
+        <div class="table-responsive">
+          <table class="table table-striped">
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Tipo</th>
+                <th>Categoria</th>
+                <th>Descrição</th>
+                <th>Valor</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for entry in entries %}
+                <tr>
+                  <td>{{ entry.data_formatada }}</td>
+                  <td>{{ entry.tipo_lancamento }}</td>
+                  <td>{{ entry.categoria }}</td>
+                  <td>{{ entry.descricao }}</td>
+                  <td>{{ entry.valor | brl }}</td>
+                  <td>
+                    {% if entry.is_expense %}
+                      <div class="d-flex gap-2">
+                        <a href="{{ url_for('editar_despesa_financeira', entry_id=entry.id_lancamento) }}"
+                           class="btn btn-sm btn-outline-primary">Editar</a>
+                        <form method="post"
+                              action="{{ url_for('excluir_despesa_financeira', entry_id=entry.id_lancamento) }}"
+                              onsubmit="return confirm('Excluir esta despesa?')">
+                          <button type="submit" class="btn btn-sm btn-outline-danger">Excluir</button>
+                        </form>
+                      </div>
+                    {% else %}
+                      <span class="text-muted small">Automático</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% else %}
+                <tr>
+                  <td colspan="6" class="text-center">Nenhum lançamento encontrado.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="alert {% if saldo < 0 %}alert-danger{% else %}alert-secondary{% endif %}">
+          <strong>Entradas:</strong> {{ total_entradas | brl }} |
+          <strong>Saídas:</strong> {{ total_saidas | brl }} |
+          <strong>Saldo:</strong> <span class="{% if saldo < 0 %}fw-bold{% endif %}">{{ saldo | brl }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title">Registrar despesa</h5>
+        <form method="post">
+          <div class="mb-3">
+            <label class="form-label">Data</label>
+            <input type="date" name="data_saida" value="{{ today_str }}" class="form-control" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Tipo de despesa</label>
+            <select name="tipo_despesa" id="tipoDespesa" class="form-select" required>
+              <option value="">Selecione</option>
+              {% for tipo in expense_types %}
+                <option value="{{ tipo }}">{{ tipo }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Categoria</label>
+            <select name="categoria" id="categoriaDespesa" class="form-select" disabled required>
+              <option value="">Selecione o tipo primeiro</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Descrição</label>
+            <input type="text" name="descricao" class="form-control" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Valor</label>
+            <input type="text" name="valor" id="inputValor" class="form-control" inputmode="numeric" placeholder="0,00" required autocomplete="off">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Orçamento relacionado <small class="text-muted">(opcional)</small></label>
+            <select name="relacionado_orcamento_id" class="form-select">
+              <option value="">Nenhum</option>
+              {% for b in budget_options %}
+                <option value="{{ b.id }}">{{ b.label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <button type="submit" class="btn btn-danger w-100">Salvar despesa</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+  const expenseTypes = {{ expense_types|tojson }};
+  const tipoSelect = document.getElementById('tipoDespesa');
+  const categoriaSelect = document.getElementById('categoriaDespesa');
+
+  function atualizarCategorias() {
+    const tipo = tipoSelect.value;
+    categoriaSelect.innerHTML = '';
+    if (!tipo || !expenseTypes[tipo]) {
+      categoriaSelect.disabled = true;
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = 'Selecione o tipo primeiro';
+      categoriaSelect.appendChild(opt);
+      return;
+    }
+    categoriaSelect.disabled = false;
+    expenseTypes[tipo].forEach(cat => {
+      const opt = document.createElement('option');
+      opt.value = cat;
+      opt.textContent = cat;
+      categoriaSelect.appendChild(opt);
+    });
+  }
+
+  if (tipoSelect) {
+    tipoSelect.addEventListener('change', atualizarCategorias);
+  }
+
+  // Máscara de moeda pt-BR no campo valor
+  const inputValor = document.getElementById('inputValor');
+  if (inputValor) {
+    inputValor.addEventListener('input', function() {
+      let digits = this.value.replace(/\D/g, '');
+      if (!digits) { this.value = ''; return; }
+      let number = parseInt(digits, 10);
+      this.value = (number / 100).toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+    });
+    inputValor.addEventListener('keydown', function(e) {
+      // Permite: backspace, delete, tab, escape, setas
+      if ([8,9,27,46,37,38,39,40].includes(e.keyCode)) return;
+      // Bloqueia qualquer tecla que não seja número
+      if (!/^\d$/.test(e.key)) e.preventDefault();
+    });
+  }
+})();
+</script>
+{% endblock %}

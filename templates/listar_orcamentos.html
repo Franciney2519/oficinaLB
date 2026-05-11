@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h3 class="mb-0">Orçamentos</h3>
+    {% if filtro == 'abertos' %}
+      <small class="text-muted">Exibindo apenas orçamentos em aberto.</small>
+    {% endif %}
+  </div>
+  <div class="d-flex gap-2">
+    {% if filtro == 'abertos' %}
+      <a href="{{ url_for('listar_orcamentos') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-x-circle me-1"></i>Limpar filtro
+      </a>
+    {% endif %}
+    <a href="{{ url_for('novo_orcamento') }}" class="btn btn-primary">
+      <i class="bi bi-plus-circle me-1"></i>Novo orçamento
+    </a>
+  </div>
+</div>
+
+<div class="table-responsive">
+  <table class="table table-hover table-striped align-middle">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Cliente</th>
+        <th>Data</th>
+        <th>Status</th>
+        <th>Valor</th>
+        <th>Ações</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for orcamento in orcamentos %}
+        <tr>
+          <td>{{ orcamento.id_orcamento }}</td>
+          <td>{{ orcamento.nome or 'Cliente removido' }}</td>
+          <td>{{ orcamento.data_criacao }}</td>
+          <td>
+            {% set status_l = (orcamento.status or '')|lower %}
+            <span class="badge bg-{{
+              'danger' if 'reprovado' in status_l
+              else 'success' if orcamento.is_finalizado
+              else 'warning'
+            }}">{{ orcamento.status }}</span>
+          </td>
+          <td>{{ orcamento.valor_total | brl }}</td>
+          <td>
+            <div class="d-flex flex-wrap gap-1">
+              <a href="{{ url_for('detalhes_orcamento', budget_id=orcamento.id_orcamento) }}" class="btn btn-sm btn-outline-secondary">Detalhes</a>
+              {% if orcamento.can_editar %}
+                <a href="{{ url_for('editar_orcamento', budget_id=orcamento.id_orcamento) }}" class="btn btn-sm btn-outline-primary">Editar</a>
+              {% else %}
+                <button class="btn btn-sm btn-outline-primary" disabled title="Orçamento concluído.">Editar</button>
+              {% endif %}
+              {% if orcamento.can_efetivar %}
+                <a href="{{ url_for('efetivar_orcamento', budget_id=orcamento.id_orcamento) }}" class="btn btn-sm btn-success">Efetivar</a>
+              {% else %}
+                <button class="btn btn-sm btn-success" disabled title="Orçamento já concluído.">Efetivar</button>
+              {% endif %}
+              {% if orcamento.can_reprovar %}
+                <form action="{{ url_for('reprovar_orcamento', budget_id=orcamento.id_orcamento) }}" method="post">
+                  <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Confirmar reprovação?')">Reprovar</button>
+                </form>
+              {% else %}
+                <button class="btn btn-sm btn-danger" disabled title="Orçamento concluído.">Reprovar</button>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+      {% else %}
+        <tr>
+          <td colspan="6" class="text-center">Nenhum orçamento cadastrado.</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

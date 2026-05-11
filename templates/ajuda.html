@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h3 class="mb-0">Central de Ajuda</h3>
+      <a href="https://wa.me/5592984618663?text=oi%2C%20preciso%20de%20ajuda%20no%20app%20da%20oficina%20R%20R"
+         target="_blank"
+         class="btn btn-success">
+        💬 Falar com suporte
+      </a>
+    </div>
+
+    <div class="alert alert-info mb-4">
+      Não encontrou o que precisa? Clique em <strong>Falar com suporte</strong> e tire sua dúvida diretamente pelo WhatsApp.
+    </div>
+
+    <!-- Clientes -->
+    <div class="card mb-3">
+      <div class="card-header fw-semibold">Clientes</div>
+      <div class="card-body">
+        <div class="accordion accordion-flush" id="faqClientes">
+
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq1">
+                Como cadastrar um novo cliente?
+              </button>
+            </h2>
+            <div id="faq1" class="accordion-collapse collapse" data-bs-parent="#faqClientes">
+              <div class="accordion-body">
+                Acesse <strong>Clientes</strong> no menu. No formulário à direita, preencha o nome (obrigatório), telefone, CPF/CNPJ e endereço. Você pode já cadastrar o veículo do cliente na mesma tela. Clique em <strong>Cadastrar</strong>.
+              </div>
+            </div>
+          </div>
+
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq2">
+                Como editar os dados de um cliente ou veículo?
+              </button>
+            </h2>
+            <div id="faq2" class="accordion-collapse collapse" data-bs-parent="#faqClientes">
+              <div class="accordion-body">
+                Na lista de clientes, clique em <strong>Editar cadastro/veículos</strong>. Você pode atualizar os dados pessoais e, mais abaixo, editar ou remover veículos e adicionar novos.
+              </div>
+            </div>
+          </div>
+
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq3">
+                Como ver o histórico de um cliente?
+              </button>
+            </h2>
+            <div id="faq3" class="accordion-collapse collapse" data-bs-parent="#faqClientes">
+              <div class="accordion-body">
+                Na lista de clientes, clique em <strong>Histórico</strong> ao lado do cliente. Também é possível acessar pelo menu <strong>Histórico de Serviços</strong> e filtrar pelo nome do cliente.
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Orçamentos -->
+    <div class="card mb-3">
+      <div class="card-header fw-semibold">Orçamentos</div>
+      <div class="card-body">
+        <div class="accordion accordion-flush" id="faqOrcamentos">
+
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq4">
+                Como criar um orçamento?
+              </button>
+            </h2>
+            <div id="faq4" class="accordion-collapse collapse" data-bs-parent="#faqOrcamentos">
+              <div class="accordion-body">
+                Clique em <strong>Novo Orçamento</strong> no menu ou no dashboard. Selecione o cliente, o veículo, informe a KM e a forma de pagamento. Adicione os itens clicando em <strong>+ Adicionar item</strong>. Ao finalizar, clique em <strong>Salvar orçamento</strong>.
+              </div>
+            </div>
+          </div>
+
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq5">
+                Como informar o custo de compra de uma peça?
+              </button>
+            </h2>
+            <div id="faq5" class="accordion-collapse collapse" data-bs-parent="#faqOrcamentos">
+              <div class="accordion-body">
+                Ao adicionar um item no orçamento, selecione o tipo <strong>Produto</strong>. Um campo amarelo chamado <strong>Custo de compra unit.</strong> aparecerá automaticamente. Informe o valor que você pagou na autopeças. Esse valor é interno — não aparece no PDF nem no WhatsApp do cliente. Ao efetivar o orçamento como Concluído, o sistema lança a saída de custo automaticamente no financeiro.
+              </div>
+            </div>
+          </div>
+
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq6">
+                Como enviar o orçamento para o cliente?
+              </button>
+            </h2>
+            <div id="faq6" class="accordion-collapse collapse" data-bs-parent="#faqOrcamentos">
+              <div class="accordion-body">
+                Após criar o orçamento, o sistema gera automaticamente um texto para WhatsApp. Clique em <strong>Enviar via WhatsApp</strong> para abrir a conversa com o cliente. Você também pode <strong>Baixar PDF</strong> para imprimir ou enviar por outro meio.
+              </div>
+            </div>
+          </div>
+
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq7">
+                Como efetivar (concluir) um orçamento?
+              </button>
+            </h2>
+            <div id="faq7" class="accordion-collapse collapse" data-bs-parent="#faqOrcamentos">
+              <div class="accordion-body">
+                Na lista de orçamentos ou nos detalhes, clique em <strong>Efetivar</strong>. Escolha a forma de pagamento, a data de conclusão e o responsável pela execução. Selecione o status <strong>Concluído</strong> para registrar tudo no financeiro e gerar o comprovante. Se o serviço ainda não foi executado, escolha <strong>Aprovado</strong>.
+              </div>
+            </div>
+          </div>
+
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq8">
+                A taxa do cartão de crédito é aplicada automaticamente?
+              </button>
+            </h2>
+            <div id="faq8" class="accordion-collapse collapse" data-bs-parent="#faqOrcamentos">
+              <div class="accordion-body">
+                Sim. Ao selecionar <strong>Cartão Crédito</strong> como forma de pagamento, o sistema aplica automaticamente uma taxa de <strong>3%</strong> sobre o valor total. O subtotal dos itens e o valor final com a taxa são exibidos separadamente.
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Financeiro -->
+    <div class="card mb-3">
+      <div class="card-header fw-semibold">Financeiro</div>
+      <div class="card-body">
+        <div class="accordion accordion-flush" id="faqFinanceiro">
+
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq9">
+                Como registrar uma despesa?
+              </button>
+            </h2>
+            <div id="faq9" class="accordion-collapse collapse" data-bs-parent="#faqFinanceiro">
+              <div class="accordion-body">
+                Acesse <strong>Financeiro</strong> no menu. No painel à direita, selecione a data, o tipo e a categoria da despesa, informe a descrição e o valor. Se a despesa estiver relacionada a um orçamento específico (ex.: compra de peça), selecione o orçamento no campo <strong>Orçamento relacionado</strong>. Clique em <strong>Salvar despesa</strong>.
+              </div>
+            </div>
+          </div>
+
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq10">
+                As entradas dos orçamentos concluídos aparecem automaticamente?
+              </button>
+            </h2>
+            <div id="faq10" class="accordion-collapse collapse" data-bs-parent="#faqFinanceiro">
+              <div class="accordion-body">
+                Sim. Toda vez que um orçamento é efetivado como <strong>Concluído</strong>, o sistema registra automaticamente a entrada no financeiro com o valor recebido. Se o orçamento tiver produtos com custo de compra informado, a saída de custo também é lançada automaticamente.
+              </div>
+            </div>
+          </div>
+
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq11">
+                Como ver o saldo de um período específico?
+              </button>
+            </h2>
+            <div id="faq11" class="accordion-collapse collapse" data-bs-parent="#faqFinanceiro">
+              <div class="accordion-body">
+                No topo da página <strong>Financeiro</strong>, use os filtros de <strong>Data inicial</strong> e <strong>Data final</strong> e clique em <strong>Filtrar</strong>. O saldo, entradas e saídas do período serão exibidos no rodapé da tabela. No <strong>Dashboard</strong> também é possível filtrar por mês e ano.
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Funcionários -->
+    <div class="card mb-4">
+      <div class="card-header fw-semibold">Funcionários</div>
+      <div class="card-body">
+        <div class="accordion accordion-flush" id="faqFuncionarios">
+
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq12">
+                Como cadastrar e gerenciar funcionários?
+              </button>
+            </h2>
+            <div id="faq12" class="accordion-collapse collapse" data-bs-parent="#faqFuncionarios">
+              <div class="accordion-body">
+                Acesse <strong>Funcionários</strong> no menu. Cadastre nome, telefone, cargo e observações. Para editar, clique em <strong>Editar</strong> na linha do funcionário. Para inativar temporariamente sem excluir, clique em <strong>Inativar</strong>. Funcionários inativos não aparecem nas listas de responsáveis dos orçamentos.
+              </div>
+            </div>
+          </div>
+
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq13">
+                O que fazer se aparecer funcionário duplicado?
+              </button>
+            </h2>
+            <div id="faq13" class="accordion-collapse collapse" data-bs-parent="#faqFuncionarios">
+              <div class="accordion-body">
+                Na página de <strong>Funcionários</strong>, clique no botão <strong>Remover duplicatas</strong>. O sistema mantém automaticamente o registro ativo de menor ID e remove os demais com o mesmo nome.
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Contato -->
+    <div class="card border-success">
+      <div class="card-body text-center py-4">
+        <h5 class="card-title">Precisa de ajuda ou quer sugerir uma melhoria?</h5>
+        <p class="text-muted">Nossa equipe está disponível pelo WhatsApp para responder dúvidas e receber sugestões para o app.</p>
+        <a href="https://wa.me/5592984618663?text=oi%2C%20preciso%20de%20ajuda%20no%20app%20da%20oficina%20R%20R"
+           target="_blank"
+           class="btn btn-success btn-lg">
+          💬 Falar pelo WhatsApp
+        </a>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

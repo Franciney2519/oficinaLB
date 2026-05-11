@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3>Histórico de Serviços por Cliente</h3>
+  <a href="{{ url_for('clientes') }}" class="btn btn-outline-secondary btn-sm">Voltar para clientes</a>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-3 align-items-end">
+      <div class="col-md-5 col-lg-4">
+        <label class="form-label">Cliente</label>
+        <select name="cliente" class="form-select">
+          <option value="">Todos</option>
+          {% for cliente in clients %}
+            <option value="{{ cliente.id_cliente }}" {% if cliente.id_cliente == selected_client_id %}selected{% endif %}>
+              {{ cliente.nome }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4 col-lg-3">
+        <label class="form-label">Placa</label>
+        <select name="placa" class="form-select">
+          <option value="">Todas</option>
+          {% for placa in placas %}
+            <option value="{{ placa }}" {% if placa == selected_placa %}selected{% endif %}>
+              {{ placa }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3 col-lg-2">
+        <button type="submit" class="btn btn-primary w-100">Filtrar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-striped align-middle">
+        <thead>
+          <tr>
+            <th>Cliente</th>
+            <th>Veículo</th>
+            <th>Nº Orçamento</th>
+            <th>Data do Serviço</th>
+            <th>KM</th>
+            <th>Total</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in services %}
+            <tr>
+              <td>{{ s.client_name }}</td>
+              <td>{{ s.veiculo_info }}</td>
+              <td>{{ s.budget_id or '-' }}</td>
+              <td>{{ s.service_date }}</td>
+              <td>{{ s.carro_km }}</td>
+              <td>{{ s.total_value | brl }}</td>
+              <td>
+                {% set status_lower = (s.status or '') | lower %}
+                <span class="badge bg-{{ 'success' if 'conclu' in status_lower else ('warning text-dark' if 'aprovado' in status_lower else 'secondary') }}">
+                  {{ s.status }}
+                </span>
+              </td>
+              <td>
+                <button class="btn btn-sm btn-outline-primary btn-detalhes"
+                  data-info='{{ s | tojson }}'>
+                  Detalhes ({{ s.itens | length }})
+                </button>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="8" class="text-center">Nenhum serviço encontrado para o filtro selecionado.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de detalhes do orçamento -->
+<div class="modal fade" id="modalDetalhes" tabindex="-1" aria-labelledby="modalDetalhesLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalDetalhesLabel">Detalhes do Orçamento</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <!-- Resumo do orçamento -->
+        <div class="row g-2 mb-3">
+          <div class="col-sm-4">
+            <p class="mb-1 text-muted small">Cliente</p>
+            <p class="fw-semibold mb-0" id="det-cliente"></p>
+          </div>
+          <div class="col-sm-4">
+            <p class="mb-1 text-muted small">Veículo</p>
+            <p class="fw-semibold mb-0" id="det-veiculo"></p>
+          </div>
+          <div class="col-sm-4">
+            <p class="mb-1 text-muted small">Data do Serviço</p>
+            <p class="fw-semibold mb-0" id="det-data"></p>
+          </div>
+          <div class="col-sm-4">
+            <p class="mb-1 text-muted small">KM do Veículo</p>
+            <p class="fw-semibold mb-0" id="det-km"></p>
+          </div>
+          <div class="col-sm-4">
+            <p class="mb-1 text-muted small">Status</p>
+            <p class="fw-semibold mb-0" id="det-status"></p>
+          </div>
+          <div class="col-sm-4">
+            <p class="mb-1 text-muted small">Total do Orçamento</p>
+            <p class="fw-semibold mb-0 text-success" id="det-total"></p>
+          </div>
+        </div>
+
+        <hr>
+
+        <!-- Tabela de itens -->
+        <h6 class="mb-2">Itens realizados</h6>
+        <div class="table-responsive">
+          <table class="table table-sm table-bordered align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Tipo</th>
+                <th>Descrição</th>
+                <th>Valor</th>
+                <th>Responsável</th>
+                <th>Observações</th>
+              </tr>
+            </thead>
+            <tbody id="det-itens">
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('.btn-detalhes').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    try {
+      var s = JSON.parse(this.dataset.info);
+
+      document.getElementById('modalDetalhesLabel').textContent =
+        'Detalhes do Orçamento' + (s.budget_id ? ' #' + s.budget_id : '');
+      document.getElementById('det-cliente').textContent = s.client_name || '-';
+      document.getElementById('det-veiculo').textContent = s.veiculo_info || '-';
+      document.getElementById('det-data').textContent    = s.service_date || '-';
+      document.getElementById('det-km').textContent      =
+        s.carro_km && s.carro_km !== '-' ? s.carro_km + ' km' : '-';
+      document.getElementById('det-status').textContent  = s.status || '-';
+      document.getElementById('det-total').textContent   =
+        'R$ ' + Number(s.total_value || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+
+      // Montar tabela de itens
+      var tbody = document.getElementById('det-itens');
+      tbody.innerHTML = '';
+      (s.itens || []).forEach(function(item) {
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td>' + (item.tipo || '-') + '</td>' +
+          '<td>' + (item.descricao || '-') + '</td>' +
+          '<td>R$ ' + Number(item.valor || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</td>' +
+          '<td>' + (item.responsavel || '-') + '</td>' +
+          '<td>' + (item.observacoes || '-') + '</td>';
+        tbody.appendChild(tr);
+      });
+
+      new bootstrap.Modal(document.getElementById('modalDetalhes')).show();
+    } catch(err) {
+      console.error('Erro ao abrir detalhes:', err, this.dataset.info);
+    }
+  });
+});
+</script>
+{% endblock %}

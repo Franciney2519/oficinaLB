@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+  <div class="col-lg-7">
+    <div class="card mb-3">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="card-title mb-0">Funcionários cadastrados</h5>
+          <form action="{{ url_for('deduplicar_funcionarios') }}" method="post"
+                onsubmit="return confirm('Remover duplicatas? Será mantido apenas o registro ativo de menor ID para cada nome.')">
+            <button type="submit" class="btn btn-sm btn-outline-warning">Remover duplicatas</button>
+          </form>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>Cargo</th>
+                <th>Usuário</th>
+                <th>Perfil</th>
+                <th>Status</th>
+                <th class="text-end">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for f in employees %}
+                <tr>
+                  <td>
+                    {{ f.nome or 'Sem nome' }}
+                    {% if f.telefone %}<br><small class="text-muted">{{ f.telefone }}</small>{% endif %}
+                  </td>
+                  <td>{{ f.cargo }}</td>
+                  <td>
+                    {% if f.usuario %}
+                      <code>{{ f.usuario }}</code>
+                    {% else %}
+                      <span class="text-muted small">sem acesso</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if f.perfil == 'admin' %}
+                      <span class="badge text-bg-primary">Admin</span>
+                    {% elif f.perfil == 'mecanico' %}
+                      <span class="badge text-bg-secondary">Mecânico</span>
+                    {% else %}
+                      <span class="text-muted small">-</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% set ativo = (f.ativo|string).lower() not in ['false','0','nao','não'] %}
+                    {% if ativo %}
+                      <span class="badge text-bg-success">Ativo</span>
+                    {% else %}
+                      <span class="badge text-bg-secondary">Inativo</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-end">
+                    <button class="btn btn-sm btn-outline-primary me-1"
+                      onclick="editarFuncionario(
+                        {{ f.id_funcionario }},
+                        {{ f.nome | tojson }},
+                        {{ f.telefone | tojson }},
+                        {{ f.cargo | tojson }},
+                        {{ f.observacoes | tojson }},
+                        {{ (f.usuario or '') | tojson }},
+                        {{ (f.perfil or 'mecanico') | tojson }},
+                        {{ (f.senha_hash|string|length > 0) | tojson }}
+                      )">
+                      Editar
+                    </button>
+                    <form action="{{ url_for('toggle_funcionario', employee_id=f.id_funcionario) }}" method="post" class="d-inline">
+                      {% if ativo %}
+                        <button class="btn btn-sm btn-outline-secondary" type="submit">Inativar</button>
+                      {% else %}
+                        <button class="btn btn-sm btn-outline-success" type="submit">Reativar</button>
+                      {% endif %}
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+              {% if employees|length == 0 %}
+                <tr><td colspan="6" class="text-center text-muted">Nenhum funcionário cadastrado.</td></tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title" id="form-title">Novo funcionário</h5>
+        <form method="post" id="funcionario-form" action="{{ url_for('funcionarios') }}">
+          <div class="mb-3">
+            <label class="form-label">Nome</label>
+            <input type="text" name="nome" id="f-nome" class="form-control" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Telefone</label>
+            <input type="text" name="telefone" id="f-telefone" class="form-control" placeholder="(99) 99999-9999">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Cargo</label>
+            <input type="text" name="cargo" id="f-cargo" class="form-control" placeholder="Mecânico, Eletricista...">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Observações</label>
+            <textarea name="observacoes" id="f-observacoes" class="form-control" rows="2"></textarea>
+          </div>
+
+          <hr>
+          <p class="text-muted small mb-3">
+            <i class="bi bi-shield-lock me-1"></i>
+            Acesso ao sistema (opcional). Deixe em branco se este funcionário não deve fazer login.
+          </p>
+
+          <div class="mb-3">
+            <label class="form-label">Usuário de login</label>
+            <input type="text" name="usuario" id="f-usuario" class="form-control"
+                   placeholder="ex: joao.silva" autocomplete="off"
+                   pattern="[A-Za-z0-9_.\-]{3,40}">
+            <div class="form-text">3 a 40 caracteres: letras, números, ponto, hífen ou underline.</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">
+              Senha
+              <span id="senha-hint" class="text-muted small d-none">(deixe vazio para manter a atual)</span>
+            </label>
+            <input type="password" name="senha" id="f-senha" class="form-control"
+                   placeholder="mínimo 6 caracteres" autocomplete="new-password" minlength="6">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Perfil</label>
+            <select name="perfil" id="f-perfil" class="form-select">
+              <option value="mecanico" selected>Mecânico — operacional (clientes e orçamentos)</option>
+              <option value="admin">Admin — acesso total (proprietário/gerente)</option>
+            </select>
+          </div>
+
+          <button type="submit" class="btn btn-primary w-100" id="btn-salvar">Salvar funcionário</button>
+          <button type="button" class="btn btn-outline-secondary w-100 mt-2 d-none" id="btn-cancelar" onclick="cancelarEdicao()">Cancelar edição</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const URL_NOVO = "{{ url_for('funcionarios') }}";
+const URL_EDITAR_TPL = "{{ url_for('editar_funcionario', employee_id=9999999) }}";
+
+function editarFuncionario(id, nome, telefone, cargo, observacoes, usuario, perfil, hasSenha) {
+  document.getElementById('form-title').textContent = 'Editar funcionário';
+  document.getElementById('f-nome').value = nome || '';
+  document.getElementById('f-telefone').value = telefone || '';
+  document.getElementById('f-cargo').value = cargo || '';
+  document.getElementById('f-observacoes').value = observacoes || '';
+  document.getElementById('f-usuario').value = usuario || '';
+  document.getElementById('f-senha').value = '';
+  document.getElementById('f-perfil').value = perfil || 'mecanico';
+  document.getElementById('senha-hint').classList.toggle('d-none', !hasSenha);
+  document.getElementById('funcionario-form').action = URL_EDITAR_TPL.replace('9999999', id);
+  document.getElementById('btn-salvar').textContent = 'Atualizar funcionário';
+  document.getElementById('btn-cancelar').classList.remove('d-none');
+  document.getElementById('f-nome').focus();
+  document.querySelector('.col-lg-5').scrollIntoView({ behavior: 'smooth' });
+}
+
+function cancelarEdicao() {
+  document.getElementById('form-title').textContent = 'Novo funcionário';
+  document.getElementById('funcionario-form').reset();
+  document.getElementById('funcionario-form').action = URL_NOVO;
+  document.getElementById('btn-salvar').textContent = 'Salvar funcionário';
+  document.getElementById('btn-cancelar').classList.add('d-none');
+  document.getElementById('senha-hint').classList.add('d-none');
+}
+</script>
+{% endblock %}

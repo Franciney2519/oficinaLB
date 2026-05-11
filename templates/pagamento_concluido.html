@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<!-- Banner de sucesso -->
+<div class="text-center py-4 mb-4">
+  <div class="d-inline-flex align-items-center justify-content-center rounded-circle bg-success mb-3"
+       style="width:72px;height:72px;">
+    <i class="bi bi-check-lg text-white" style="font-size:2.2rem;"></i>
+  </div>
+  <h2 class="fw-bold text-success mb-1">Pagamento Concluído!</h2>
+  <p class="text-muted mb-0">Orçamento <strong>#{{ budget_id }}</strong> finalizado com sucesso.</p>
+</div>
+
+<div class="row justify-content-center g-3">
+  <div class="col-lg-7">
+
+    <!-- Resumo -->
+    <div class="card mb-3">
+      <div class="card-header fw-semibold"><i class="bi bi-receipt me-2"></i>Resumo do pagamento</div>
+      <div class="card-body">
+        <div class="row g-2 mb-3">
+          <div class="col-6">
+            <p class="mb-1 text-muted small">Cliente</p>
+            <p class="fw-semibold mb-0">{{ client.nome }}</p>
+          </div>
+          <div class="col-6">
+            <p class="mb-1 text-muted small">Data do pagamento</p>
+            <p class="fw-semibold mb-0">{{ data_pagamento.strftime('%d/%m/%Y') }}</p>
+          </div>
+          <div class="col-6">
+            <p class="mb-1 text-muted small">Valor recebido</p>
+            <p class="fw-bold fs-5 text-success mb-0">{{ valor_final | brl }}</p>
+          </div>
+        </div>
+
+        <h6 class="fw-semibold mb-2">Itens faturados</h6>
+        <ul class="list-group list-group-flush">
+          {% for item in items %}
+            <li class="list-group-item d-flex justify-content-between align-items-start flex-wrap gap-1 px-0">
+              <span>{{ item.descricao }} <small class="text-muted">{{ item.quantidade }}x {{ item.valor_unitario | brl }}</small></span>
+              <strong class="text-nowrap">{{ item.subtotal | brl }}</strong>
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+
+    <!-- Ações -->
+    <div class="d-flex flex-wrap gap-2 mb-3">
+      <a href="{{ url_for('gerar_recibo', budget_id=budget_id) }}" class="btn btn-primary">
+        <i class="bi bi-download me-1"></i>Baixar comprovante
+      </a>
+      <a href="https://wa.me/?text={{ texto_whatsapp|urlencode }}" target="_blank" class="btn btn-success">
+        <i class="bi bi-whatsapp me-1"></i>Enviar via WhatsApp
+      </a>
+      <a href="{{ url_for('detalhes_orcamento', budget_id=budget_id) }}" class="btn btn-outline-secondary">
+        Ver detalhes
+      </a>
+      <a href="{{ url_for('listar_orcamentos') }}" class="btn btn-outline-dark">
+        Voltar para lista
+      </a>
+    </div>
+
+    <!-- Mensagem WhatsApp -->
+    <div class="card">
+      <div class="card-header fw-semibold"><i class="bi bi-chat-dots me-2"></i>Mensagem para WhatsApp</div>
+      <div class="card-body">
+        <textarea class="form-control" rows="5">{{ texto_whatsapp }}</textarea>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

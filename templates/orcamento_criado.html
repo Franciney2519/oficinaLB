@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="text-center py-4 mb-4">
+  <div class="d-inline-flex align-items-center justify-content-center rounded-circle bg-success mb-3"
+       style="width:72px;height:72px;">
+    <i class="bi bi-check-lg text-white" style="font-size:2.2rem;"></i>
+  </div>
+  <h2 class="fw-bold text-success mb-1">Orçamento Criado!</h2>
+  <p class="text-muted mb-0">Orçamento <strong>#{{ orcamento_id }}</strong> criado para <strong>{{ client.nome }}</strong>.</p>
+</div>
+
+<div class="row justify-content-center g-3">
+  <div class="col-lg-8">
+    <div class="card mb-3">
+      <div class="card-header fw-semibold"><i class="bi bi-receipt me-2"></i>Resumo do orçamento</div>
+      <div class="card-body">
+    <p><strong>Forma de pagamento:</strong> {{ forma_pagamento }}</p>
+    <p><strong>Valor dos itens:</strong> {{ base_total | brl }}</p>
+    {% if taxa > 0 %}
+      <p><strong>Taxa cartão (3%):</strong> {{ taxa | brl }}</p>
+    {% endif %}
+    <p><strong>Valor final para o cliente:</strong> {{ total | brl }}</p>
+    <ul class="list-group mb-3">
+      {% for item in items %}
+        <li class="list-group-item d-flex justify-content-between align-items-start flex-wrap gap-1">
+          <span>{{ item.descricao }} <small class="text-muted">{{ item.quantidade }}x {{ item.valor_unitario | brl }}</small></span>
+          <strong class="text-nowrap">{{ item.subtotal | brl }}</strong>
+        </li>
+      {% endfor %}
+    </ul>
+      </div>
+    </div>
+
+    <div class="d-flex flex-wrap gap-2 mt-3">
+      <a href="{{ url_for('novo_orcamento') }}" class="btn btn-outline-primary">
+        <i class="bi bi-plus-circle me-1"></i>Criar outro
+      </a>
+      <a href="{{ url_for('gerar_pdf_orcamento', budget_id=orcamento_id) }}" class="btn btn-outline-secondary">
+        <i class="bi bi-download me-1"></i>Baixar PDF
+      </a>
+      <a href="https://wa.me/?text={{ texto_whatsapp|urlencode }}" target="_blank" class="btn btn-success">
+        <i class="bi bi-whatsapp me-1"></i>Enviar via WhatsApp
+      </a>
+      <a href="{{ url_for('listar_orcamentos') }}" class="btn btn-outline-dark">Ver todos os orçamentos</a>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header fw-semibold"><i class="bi bi-chat-dots me-2"></i>Mensagem para WhatsApp</div>
+      <div class="card-body">
+        <textarea class="form-control" rows="8">{{ texto_whatsapp }}</textarea>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

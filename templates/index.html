@@ -1,0 +1,243 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-3 align-items-end">
+      <div class="col-sm-4 col-md-3">
+        <label class="form-label">Mês</label>
+        <select name="mes" class="form-select">
+          {% for numero, nome_mes in month_options %}
+            <option value="{{ numero }}" {% if numero == selected_month %}selected{% endif %}>
+              {{ "%02d"|format(numero) }} - {{ nome_mes }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-sm-4 col-md-3">
+        <label class="form-label">Ano</label>
+        <select name="ano" class="form-select">
+          {% for ano_opcao in year_options %}
+            <option value="{{ ano_opcao }}" {% if ano_opcao == selected_year %}selected{% endif %}>{{ ano_opcao }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-sm-4 col-md-3 d-flex align-items-end gap-2">
+        <button type="submit" class="btn btn-primary">Aplicar</button>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">Limpar</a>
+      </div>
+      <div class="col-12 col-md-3 text-md-end">
+        <small class="text-muted">Exibindo {{ selected_month_name }} / {{ selected_year }}</small>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-4">
+    <div class="card text-bg-primary h-100">
+      <div class="card-body d-flex justify-content-between align-items-start gap-3">
+        <div>
+          <h5 class="card-title">Clientes cadastrados</h5>
+          <p class="display-6 mb-1">{{ total_clients }}</p>
+          <small>Total geral</small>
+        </div>
+        <i class="bi bi-people-fill opacity-75" style="font-size:2.4rem;"></i>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <a href="{{ url_for('listar_orcamentos', filtro='abertos') }}" class="card text-bg-warning h-100 text-decoration-none">
+      <div class="card-body d-flex justify-content-between align-items-start gap-3">
+        <div>
+          <h5 class="card-title">Orçamentos em aberto</h5>
+          <p class="display-6 mb-1">{{ total_open_budgets }}</p>
+          <small>Pendentes de conclusão</small>
+        </div>
+        <i class="bi bi-file-earmark-text-fill opacity-75" style="font-size:2.4rem;"></i>
+      </div>
+    </a>
+  </div>
+  <div class="col-md-4">
+    <div class="card {% if saldo < 0 %}text-bg-danger{% else %}text-bg-success{% endif %} h-100">
+      <div class="card-body d-flex justify-content-between align-items-start gap-3">
+        <div>
+          <h5 class="card-title">Saldo do período</h5>
+          <p class="display-6 mb-1">{{ saldo | brl }}</p>
+          <small>{{ selected_month_name }} / {{ selected_year }} — Entradas: {{ total_entradas | brl }} | Saídas: {{ total_saidas | brl }}</small>
+        </div>
+        <i class="bi {% if saldo < 0 %}bi-graph-down-arrow{% else %}bi-graph-up-arrow{% endif %} opacity-75" style="font-size:2.4rem;"></i>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="card-title mb-0">Evolução financeira (últimos 12 meses)</h5>
+          <small class="text-muted">Valores de entradas, saídas e saldo</small>
+        </div>
+        <div style="height:240px;">
+          <canvas id="evolucaoMensalChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card mb-3">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="card-title mb-0">Execução por responsável</h5>
+          <small class="text-muted">Serviços concluídos</small>
+        </div>
+        {% if executores %}
+          <div class="table-responsive">
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>Responsável</th>
+                  <th class="text-end">Serviços</th>
+                  <th class="text-end">Receita</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for exe in executores %}
+                  <tr>
+                    <td>{{ exe.responsavel or 'Não informado' }}</td>
+                    <td class="text-end">{{ exe.qtd_servicos }}</td>
+                    <td class="text-end">{{ exe.total_receita | brl }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="text-muted mb-0">Nenhum serviço concluído ainda.</p>
+        {% endif %}
+      </div>
+    </div>
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Ações rápidas</h5>
+        <div class="d-grid gap-2">
+          <a href="{{ url_for('clientes') }}" class="btn btn-outline-primary">
+            <i class="bi bi-people me-1"></i>Cadastro de clientes
+          </a>
+          <a href="{{ url_for('novo_orcamento') }}" class="btn btn-outline-success">
+            <i class="bi bi-plus-circle me-1"></i>Criar novo orçamento
+          </a>
+          <a href="{{ url_for('listar_orcamentos', filtro='abertos') }}" class="btn btn-outline-warning">
+            <i class="bi bi-hourglass-split me-1"></i>Orçamentos em aberto
+          </a>
+          <a href="{{ url_for('financeiro') }}" class="btn btn-outline-info">
+            <i class="bi bi-cash-stack me-1"></i>Controle financeiro
+          </a>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title">Último orçamento</h5>
+        {% if latest_budget %}
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <div class="fw-semibold">#{{ latest_budget.id_orcamento }} — {{ latest_budget.cliente }}</div>
+              <div class="text-muted small">{{ latest_budget.data }}</div>
+            </div>
+            <span class="badge bg-{{
+              'danger' if latest_budget.is_reprovado
+              else 'success' if latest_budget.is_finalizado
+              else 'warning'
+            }}">{{ latest_budget.status }}</span>
+          </div>
+          <div class="d-flex justify-content-between align-items-center">
+            <strong>{{ latest_budget.valor | brl }}</strong>
+            <a href="{{ url_for('detalhes_orcamento', budget_id=latest_budget.id_orcamento) }}" class="btn btn-sm btn-outline-primary">
+              <i class="bi bi-box-arrow-up-right me-1"></i>Abrir
+            </a>
+          </div>
+        {% else %}
+          <p class="text-muted mb-0">Nenhum orçamento cadastrado.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+(() => {
+  const ctx = document.getElementById('evolucaoMensalChart');
+  if (!ctx) return;
+
+  const labels = {{ chart_labels | tojson }};
+  const entradas = {{ chart_entradas | tojson }};
+  const saidas = {{ chart_saidas | tojson }};
+  const saldo = {{ chart_saldo | tojson }};
+
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Entradas',
+          data: entradas,
+          backgroundColor: 'rgba(25, 135, 84, 0.6)',
+          borderColor: '#198754',
+          borderWidth: 1,
+          maxBarThickness: 18,
+        },
+        {
+          label: 'Saídas',
+          data: saidas,
+          backgroundColor: 'rgba(220, 53, 69, 0.55)',
+          borderColor: '#dc3545',
+          borderWidth: 1,
+          maxBarThickness: 18,
+        },
+        {
+          label: 'Saldo',
+          data: saldo,
+          type: 'line',
+          borderColor: '#0d6efd',
+          backgroundColor: 'rgba(13, 110, 253, 0.18)',
+          tension: 0.2,
+          fill: true,
+          borderWidth: 2,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'top' },
+        tooltip: {
+          callbacks: {
+            label(context) {
+              const value = context.parsed.y ?? 0;
+              return `${context.dataset.label}: ${value.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}`;
+            },
+          },
+        },
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            callback: (value) => `R$ ${Number(value).toFixed(0)}`,
+          },
+          grid: { display: true, color: 'rgba(0,0,0,0.05)' },
+        },
+      },
+    },
+  });
+})();
+</script>
+{% endblock %}

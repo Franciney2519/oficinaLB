@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+  <div class="col-lg-8">
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Criar novo orçamento</h5>
+        <form method="post" id="formOrcamento">
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Cliente</label>
+            <select name="id_cliente" id="selectCliente" class="form-select form-select-lg" required>
+              <option value="">Selecione</option>
+              {% for cliente in clients %}
+                <option value="{{ cliente.id_cliente }}">{{ cliente.nome }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="mb-3" id="blocoVeiculo" style="display:none">
+            <label class="form-label fw-semibold">Veículo</label>
+            <select name="id_veiculo" id="selectVeiculo" class="form-select form-select-lg">
+              <option value="">Selecione o veículo</option>
+            </select>
+          </div>
+
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <label class="form-label fw-semibold">KM do veículo</label>
+              <input type="text" name="carro_km" class="form-control form-control-lg" placeholder="Ex.: 120000">
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-semibold">Cor (confirmação)</label>
+              <input type="text" name="carro_cor" id="inputCor" class="form-control form-control-lg" placeholder="Ex.: Prata">
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Responsável planejado</label>
+            <select name="responsavel_execucao" class="form-select form-select-lg">
+              <option value="">Selecione</option>
+              {% for emp in employees %}
+                <option value="{{ emp.id_funcionario }}">{{ emp.nome }}{% if emp.cargo %} — {{ emp.cargo }}{% endif %}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label fw-semibold">Forma de pagamento</label>
+            <select name="forma_pagamento" id="formaPagamento" class="form-select form-select-lg" required>
+              {% for option in payment_options %}
+                <option value="{{ option }}">{{ option }}</option>
+              {% endfor %}
+            </select>
+            <small class="text-muted">Cartão de crédito aplica taxa adicional de 3%.</small>
+          </div>
+
+          <!-- Itens -->
+          <h6 class="fw-bold mb-2">Itens do orçamento</h6>
+          <div id="listaItens"></div>
+
+          <button type="button" class="btn btn-outline-secondary w-100 mb-4 py-2" id="btnAdicionarItem">
+            + Adicionar item
+          </button>
+
+          <!-- Totais -->
+          <div class="card bg-light mb-4">
+            <div class="card-body">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="fw-semibold">Subtotal:</span>
+                <span id="valorTotalBase" class="fs-5">R$ 0,00</span>
+              </div>
+              <div class="d-flex justify-content-between align-items-center">
+                <span class="fw-semibold">Total com pagamento:</span>
+                <span id="valorTotalFinal" class="fs-4 fw-bold text-success">R$ 0,00</span>
+              </div>
+            </div>
+          </div>
+
+          <input type="hidden" id="hiddenTotalBase" name="valor_total_base" value="0">
+          <input type="hidden" id="hiddenTotalFinal" name="valor_total_final" value="0">
+
+          <div class="d-flex justify-content-between gap-2">
+            <a href="{{ url_for('listar_orcamentos') }}" class="btn btn-outline-secondary btn-lg flex-fill">Voltar</a>
+            <button type="submit" class="btn btn-success btn-lg flex-fill">Salvar orçamento</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4 d-none d-lg-block">
+    <div class="alert alert-info">
+      Selecione o cliente e depois o veículo. Preencha os itens com quantidade e valor unitário. O sistema calcula o total automaticamente.
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const vehiclesByClient = {{ vehicles_by_client | tojson }};
+const selectCliente  = document.getElementById('selectCliente');
+const selectVeiculo  = document.getElementById('selectVeiculo');
+const blocoVeiculo   = document.getElementById('blocoVeiculo');
+const inputCor       = document.getElementById('inputCor');
+const listaItens     = document.getElementById('listaItens');
+const btnAdicionar   = document.getElementById('btnAdicionarItem');
+const formaPagamento = document.getElementById('formaPagamento');
+const spanBase       = document.getElementById('valorTotalBase');
+const spanFinal      = document.getElementById('valorTotalFinal');
+const hiddenBase     = document.getElementById('hiddenTotalBase');
+const hiddenFinal    = document.getElementById('hiddenTotalFinal');
+
+function formatBRL(v) {
+  return 'R$ ' + v.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+
+function aplicarMascaraValor(input) {
+  input.addEventListener('input', function() {
+    let digits = this.value.replace(/\D/g, '');
+    if (!digits) { this.value = ''; return; }
+    let number = parseInt(digits, 10);
+    this.value = (number / 100).toLocaleString('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+  });
+  input.addEventListener('keydown', function(e) {
+    if ([8, 9, 27, 46, 37, 38, 39, 40].includes(e.keyCode)) return;
+    if (!/^\d$/.test(e.key)) e.preventDefault();
+  });
+}
+
+function atualizarTotal() {
+  let total = 0;
+  listaItens.querySelectorAll('.item-card').forEach(card => {
+    const qtd   = parseFloat(card.querySelector('.inp-qtd').value.replace(',', '.')) || 0;
+    const valor = parseFloat(card.querySelector('.inp-valor').value.replace(',', '.')) || 0;
+    total += qtd * valor;
+  });
+  let final = total;
+  if (formaPagamento.value === 'Cartão Crédito') final = +(total * 1.03).toFixed(2);
+  spanBase.textContent  = formatBRL(total);
+  spanFinal.textContent = formatBRL(final);
+  hiddenBase.value  = total.toFixed(2);
+  hiddenFinal.value = final.toFixed(2);
+}
+
+selectCliente.addEventListener('change', function() {
+  const cid = this.value;
+  selectVeiculo.innerHTML = '<option value="">Selecione o veículo</option>';
+  inputCor.value = '';
+  if (!cid) { blocoVeiculo.style.display = 'none'; return; }
+  const veiculos = vehiclesByClient[cid] || [];
+  veiculos.forEach(v => {
+    const opt = document.createElement('option');
+    opt.value = v.id_veiculo ?? '';
+    const label = [v.marca, v.modelo, v.ano, v.placa ? '(' + v.placa + ')' : ''].filter(Boolean).join(' ');
+    opt.textContent = label || 'Veículo sem dados';
+    opt.dataset.cor = v.cor || '';
+    selectVeiculo.appendChild(opt);
+  });
+  blocoVeiculo.style.display = veiculos.length ? '' : 'none';
+  if (veiculos.length === 1) {
+    selectVeiculo.selectedIndex = 1;
+    selectVeiculo.dispatchEvent(new Event('change'));
+  }
+});
+
+selectVeiculo.addEventListener('change', function() {
+  const opt = this.options[this.selectedIndex];
+  inputCor.value = opt ? (opt.dataset.cor || '') : '';
+});
+
+let contadorItens = 0;
+function adicionarItem() {
+  contadorItens++;
+  const div = document.createElement('div');
+  div.className = 'item-card card mb-3 border-secondary';
+  div.innerHTML = `
+    <div class="card-body pb-2">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <span class="fw-semibold text-secondary small">Item ${contadorItens}</span>
+        <button type="button" class="btn btn-sm btn-outline-danger btn-remover">Remover</button>
+      </div>
+      <div class="mb-2">
+        <label class="form-label small fw-semibold">Descrição</label>
+        <input type="text" name="item_descricao[]" class="form-control form-control-lg" placeholder="Ex.: Troca de óleo" required>
+      </div>
+      <div class="row g-2">
+        <div class="col-12">
+          <label class="form-label small fw-semibold">Tipo</label>
+          <select name="item_tipo[]" class="form-select form-select-lg">
+            <option value="Produto">Produto</option>
+            <option value="Serviço">Serviço</option>
+            <option value="Outros">Outros</option>
+          </select>
+        </div>
+        <div class="col-6">
+          <label class="form-label small fw-semibold">Quantidade</label>
+          <input type="number" step="0.01" min="0" name="item_quantidade[]"
+                 class="form-control form-control-lg inp-qtd" value="1">
+        </div>
+        <div class="col-6">
+          <label class="form-label small fw-semibold">Valor unit. (R$)</label>
+          <input type="text" inputmode="numeric" name="item_valor[]"
+                 class="form-control form-control-lg inp-valor" placeholder="0,00" autocomplete="off">
+        </div>
+        <div class="col-12 bloco-custo" style="display:none">
+          <label class="form-label small fw-semibold text-warning">Custo de compra unit. (R$) <small class="text-muted fw-normal">— interno, não aparece no PDF</small></label>
+          <input type="text" inputmode="numeric" name="item_custo[]"
+                 class="form-control form-control-lg inp-custo" placeholder="0,00" autocomplete="off">
+        </div>
+      </div>
+    </div>`;
+  const tipoSelect = div.querySelector("select[name='item_tipo[]']");
+  const blocoCusto = div.querySelector('.bloco-custo');
+  function toggleCusto() {
+    blocoCusto.style.display = tipoSelect.value === 'Produto' ? '' : 'none';
+  }
+  tipoSelect.addEventListener('change', toggleCusto);
+  toggleCusto();
+  div.querySelectorAll('input').forEach(i => i.addEventListener('input', atualizarTotal));
+  aplicarMascaraValor(div.querySelector('.inp-valor'));
+  aplicarMascaraValor(div.querySelector('.inp-custo'));
+  div.querySelector('.btn-remover').addEventListener('click', () => { div.remove(); atualizarTotal(); });
+  listaItens.appendChild(div);
+  atualizarTotal();
+  div.querySelector('input[name="item_descricao[]"]').focus();
+}
+
+btnAdicionar.addEventListener('click', adicionarItem);
+formaPagamento.addEventListener('change', atualizarTotal);
+adicionarItem();
+</script>
+{% endblock %}

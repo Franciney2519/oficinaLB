@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+  <div class="col-lg-8">
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Orçamento #{{ budget.id_orcamento }}</h5>
+        <p><strong>Status:</strong> {{ budget.status }}</p>
+        <p><strong>Cliente:</strong> {{ client.nome }} - {{ client.telefone_whatsapp }}</p>
+        <p><strong>Veículo:</strong> {{ veiculo.marca }} {{ veiculo.modelo }} {{ veiculo.ano }}{% if veiculo.placa %} ({{ veiculo.placa }}){% endif %}</p>
+        <p><strong>Cor / KM informados:</strong> {{ budget.carro_cor or veiculo.cor or 'N/D' }} / {{ budget.carro_km or 'N/D' }}</p>
+        <p><strong>Responsável planejado:</strong> {{ budget.responsavel_planejado_nome or 'N/D' }}</p>
+        <p><strong>Forma de pagamento:</strong> {{ forma_pagamento }}{% if taxa > 0 %} (taxa {{ taxa | brl }}){% endif %}</p>
+        <p><strong>Valor dos itens:</strong> {{ base_total | brl }}</p>
+        <p><strong>Valor final apresentado ao cliente:</strong> {{ final_total | brl }}</p>
+
+        <h6>Itens</h6>
+        <ul class="list-group mb-3">
+          {% for item in items %}
+            <li class="list-group-item">
+              <div class="d-flex justify-content-between align-items-start flex-wrap gap-1">
+                <div>
+                  <strong>{{ item.descricao }}</strong><br>
+                  <small class="text-muted">{{ item.tipo }}</small>
+                </div>
+                <div class="text-end text-nowrap">
+                  <small class="text-muted">{{ item.quantidade }} x {{ item.valor_unitario | brl }}</small><br>
+                  <strong>{{ item.subtotal | brl }}</strong>
+                </div>
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+        <h5>Total: {{ final_total | brl }}</h5>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <h6>Texto para WhatsApp</h6>
+        <textarea class="form-control" rows="8">{{ budget.texto_whatsapp }}</textarea>
+        <a href="https://wa.me/?text={{ budget.texto_whatsapp|urlencode }}" target="_blank" class="btn btn-success mt-3">Enviar via WhatsApp</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-body">
+        <h6>Ações</h6>
+        {% if can_efetivar %}
+          <a href="{{ url_for('efetivar_orcamento', budget_id=budget.id_orcamento) }}" class="btn btn-success w-100 mb-2">Efetivar</a>
+        {% else %}
+          <button class="btn btn-success w-100 mb-2" disabled title="Orçamento já concluído.">Efetivar</button>
+        {% endif %}
+        {% if can_edit %}
+          <a href="{{ url_for('editar_orcamento', budget_id=budget.id_orcamento) }}" class="btn btn-outline-secondary w-100 mb-2">Editar</a>
+        {% else %}
+          <button class="btn btn-outline-secondary w-100 mb-2" disabled title="Orçamento concluído.">Editar</button>
+        {% endif %}
+        {% if can_recibo %}
+          <a href="{{ url_for('gerar_recibo', budget_id=budget.id_orcamento) }}" class="btn btn-outline-primary w-100 mb-2">Baixar comprovante</a>
+        {% else %}
+          <button class="btn btn-outline-primary w-100 mb-2" disabled title="Disponível após conclusão.">Baixar comprovante</button>
+        {% endif %}
+        <a href="{{ url_for('gerar_pdf_orcamento', budget_id=budget.id_orcamento) }}" class="btn btn-outline-primary w-100 mb-2">Baixar PDF</a>
+        {% if can_reprovar %}
+          <form action="{{ url_for('reprovar_orcamento', budget_id=budget.id_orcamento) }}" method="post">
+            <button type="submit" class="btn btn-danger w-100" onclick="return confirm('Confirmar reprovação?')">Reprovar</button>
+          </form>
+        {% else %}
+          <button class="btn btn-danger w-100" disabled title="Orçamento concluído.">Reprovar</button>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

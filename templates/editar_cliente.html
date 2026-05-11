@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+
+    <!-- Dados pessoais -->
+    <div class="card mb-4">
+      <div class="card-body">
+        <h5 class="card-title">Editar cliente: {{ client.nome }}</h5>
+        <p class="text-muted small mb-3">Atualize os dados do cliente e gerencie os veículos cadastrados.</p>
+        <form method="post">
+          {% for field, label in [
+            ('nome', 'Nome completo'),
+            ('cpf_cnpj', 'CPF/CNPJ'),
+            ('telefone_whatsapp', 'Telefone/WhatsApp'),
+            ('email', 'Email'),
+            ('endereco_rua', 'Rua'),
+            ('endereco_numero', 'Número'),
+            ('endereco_bairro', 'Bairro'),
+            ('endereco_cidade', 'Cidade'),
+            ('endereco_uf', 'UF'),
+            ('endereco_cep', 'CEP')
+          ] %}
+            <div class="mb-2">
+              <label class="form-label">{{ label }}</label>
+              <input type="text"
+                     class="form-control{% if field == 'cpf_cnpj' %} cpf-cnpj-mask{% endif %}"
+                     name="{{ field }}"
+                     value="{{ client[field] or '' }}"
+                     {% if field == 'cpf_cnpj' %}inputmode="numeric" maxlength="18" placeholder="CPF ou CNPJ" autocomplete="off"{% endif %}>
+            </div>
+          {% endfor %}
+          <div class="mb-3">
+            <label class="form-label">Observações</label>
+            <textarea class="form-control" name="observacoes" rows="3">{{ client['observacoes'] or '' }}</textarea>
+          </div>
+          <div class="d-flex justify-content-between">
+            <a href="{{ url_for('clientes') }}" class="btn btn-outline-secondary">Voltar</a>
+            <button type="submit" class="btn btn-primary">Salvar alterações</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Veículos cadastrados -->
+    <div class="card mb-4">
+      <div class="card-body">
+        <h5 class="card-title">Veículos</h5>
+
+        {% if legacy_vehicle %}
+          <div class="alert alert-warning">
+            <div class="fw-semibold mb-1">Veículo antigo detectado</div>
+            <div class="small mb-2">
+              {{ legacy_vehicle.marca }} {{ legacy_vehicle.modelo }} {{ legacy_vehicle.ano }}
+              {% if legacy_vehicle.placa %}— {{ legacy_vehicle.placa }}{% endif %}
+            </div>
+            <form method="post" action="{{ url_for('migrar_veiculo_legado', client_id=client.id_cliente) }}">
+              <input type="hidden" name="marca" value="{{ legacy_vehicle.marca }}">
+              <input type="hidden" name="modelo" value="{{ legacy_vehicle.modelo }}">
+              <input type="hidden" name="ano" value="{{ legacy_vehicle.ano }}">
+              <input type="hidden" name="placa" value="{{ legacy_vehicle.placa }}">
+              <input type="hidden" name="cor" value="{{ legacy_vehicle.cor }}">
+              <input type="hidden" name="observacoes" value="{{ legacy_vehicle.observacoes }}">
+              <button type="submit" class="btn btn-sm btn-warning">Converter para veículo editável</button>
+            </form>
+          </div>
+        {% endif %}
+
+        {% for v in veiculos %}
+          <div class="border rounded p-3 mb-3">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+              <strong>{{ v.marca }} {{ v.modelo }} {{ v.ano }}{% if v.placa %} — {{ v.placa }}{% endif %}{% if v.cor %} ({{ v.cor }}){% endif %}</strong>
+              <div class="d-flex gap-2">
+                {% if v.id_veiculo %}
+                  <button class="btn btn-sm btn-outline-primary" type="button"
+                          data-bs-toggle="collapse"
+                          data-bs-target="#editVeiculo{{ v.id_veiculo }}">Editar</button>
+                  <form method="post" action="{{ url_for('excluir_veiculo', vehicle_id=v.id_veiculo) }}"
+                        onsubmit="return confirm('Remover este veículo?')">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">Remover</button>
+                  </form>
+                {% endif %}
+              </div>
+            </div>
+
+            {% if v.id_veiculo %}
+              <div class="collapse" id="editVeiculo{{ v.id_veiculo }}">
+                <form method="post" action="{{ url_for('editar_veiculo', vehicle_id=v.id_veiculo) }}">
+                  <div class="row g-2">
+                    <div class="col-6">
+                      <label class="form-label small">Marca</label>
+                      <input type="text" name="marca" class="form-control form-control-sm" value="{{ v.marca or '' }}">
+                    </div>
+                    <div class="col-6">
+                      <label class="form-label small">Modelo</label>
+                      <input type="text" name="modelo" class="form-control form-control-sm" value="{{ v.modelo or '' }}">
+                    </div>
+                    <div class="col-4">
+                      <label class="form-label small">Ano</label>
+                      <input type="text" name="ano" class="form-control form-control-sm" value="{{ v.ano or '' }}">
+                    </div>
+                    <div class="col-4">
+                      <label class="form-label small">Placa</label>
+                      <input type="text" name="placa" class="form-control form-control-sm" value="{{ v.placa or '' }}">
+                    </div>
+                    <div class="col-4">
+                      <label class="form-label small">Cor</label>
+                      <input type="text" name="cor" class="form-control form-control-sm" value="{{ v.cor or '' }}">
+                    </div>
+                    <div class="col-12">
+                      <label class="form-label small">Observações</label>
+                      <input type="text" name="observacoes" class="form-control form-control-sm" value="{{ v.observacoes or '' }}">
+                    </div>
+                  </div>
+                  <div class="mt-2 text-end">
+                    <button type="submit" class="btn btn-sm btn-success">Salvar veículo</button>
+                  </div>
+                </form>
+              </div>
+            {% endif %}
+          </div>
+        {% else %}
+          <p class="text-muted">Nenhum veículo cadastrado.</p>
+        {% endfor %}
+
+        <!-- Adicionar novo veículo -->
+        <hr>
+        <h6 class="fw-semibold mb-2">Adicionar veículo</h6>
+        <form method="post" action="{{ url_for('adicionar_veiculo', client_id=client.id_cliente) }}">
+          <div class="row g-2">
+            <div class="col-6">
+              <label class="form-label small">Marca</label>
+              <input type="text" name="marca" class="form-control form-control-sm" placeholder="Ex.: Toyota">
+            </div>
+            <div class="col-6">
+              <label class="form-label small">Modelo</label>
+              <input type="text" name="modelo" class="form-control form-control-sm" placeholder="Ex.: Corolla">
+            </div>
+            <div class="col-4">
+              <label class="form-label small">Ano</label>
+              <input type="text" name="ano" class="form-control form-control-sm" placeholder="Ex.: 2020">
+            </div>
+            <div class="col-4">
+              <label class="form-label small">Placa</label>
+              <input type="text" name="placa" class="form-control form-control-sm" placeholder="ABC-1234">
+            </div>
+            <div class="col-4">
+              <label class="form-label small">Cor</label>
+              <input type="text" name="cor" class="form-control form-control-sm" placeholder="Ex.: Prata">
+            </div>
+            <div class="col-12">
+              <label class="form-label small">Observações</label>
+              <input type="text" name="observacoes" class="form-control form-control-sm">
+            </div>
+          </div>
+          <div class="mt-2">
+            <button type="submit" class="btn btn-outline-success btn-sm">Adicionar veículo</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title">Editar despesa</h5>
+        <form method="post">
+          <div class="mb-3">
+            <label class="form-label">Data</label>
+            <input type="date" name="data_saida" value="{{ entry.data or '' }}" class="form-control" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Tipo de despesa</label>
+            <select name="tipo_despesa" id="tipoDespesa" class="form-select" required>
+              <option value="">Selecione</option>
+              {% for tipo in expense_types %}
+                <option value="{{ tipo }}" {% if tipo == selected_type %}selected{% endif %}>{{ tipo }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Categoria</label>
+            <select name="categoria" id="categoriaDespesa" class="form-select" required>
+              <option value="">Selecione o tipo primeiro</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Descrição</label>
+            <input type="text" name="descricao" value="{{ entry.descricao or '' }}" class="form-control" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Valor</label>
+            <input type="text"
+                   name="valor"
+                   id="inputValor"
+                   value="{{ entry.valor | brl | replace('R$ ', '') }}"
+                   class="form-control"
+                   inputmode="numeric"
+                   autocomplete="off"
+                   required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Orçamento relacionado <small class="text-muted">(opcional)</small></label>
+            <select name="relacionado_orcamento_id" class="form-select">
+              <option value="">Nenhum</option>
+              {% for b in budget_options %}
+                <option value="{{ b.id }}" {% if b.id == entry.relacionado_orcamento_id %}selected{% endif %}>{{ b.label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="d-flex justify-content-between">
+            <a href="{{ url_for('financeiro') }}" class="btn btn-outline-secondary">Cancelar</a>
+            <button type="submit" class="btn btn-primary">Salvar alterações</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+  const expenseTypes = {{ expense_types|tojson }};
+  const selectedCategory = {{ selected_category|tojson }};
+  const tipoSelect = document.getElementById('tipoDespesa');
+  const categoriaSelect = document.getElementById('categoriaDespesa');
+
+  function atualizarCategorias() {
+    const tipo = tipoSelect.value;
+    categoriaSelect.innerHTML = '';
+    if (!tipo || !expenseTypes[tipo]) {
+      categoriaSelect.disabled = true;
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = 'Selecione o tipo primeiro';
+      categoriaSelect.appendChild(opt);
+      return;
+    }
+
+    categoriaSelect.disabled = false;
+    expenseTypes[tipo].forEach(cat => {
+      const opt = document.createElement('option');
+      opt.value = cat;
+      opt.textContent = cat;
+      opt.selected = cat === selectedCategory;
+      categoriaSelect.appendChild(opt);
+    });
+  }
+
+  if (tipoSelect) {
+    tipoSelect.addEventListener('change', atualizarCategorias);
+    atualizarCategorias();
+  }
+
+  const inputValor = document.getElementById('inputValor');
+  if (inputValor) {
+    inputValor.addEventListener('input', function() {
+      let digits = this.value.replace(/\D/g, '');
+      if (!digits) {
+        this.value = '';
+        return;
+      }
+      const number = parseInt(digits, 10);
+      this.value = (number / 100).toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+    });
+    inputValor.addEventListener('keydown', function(event) {
+      if ([8, 9, 27, 46, 37, 38, 39, 40].includes(event.keyCode)) return;
+      if (!/^\d$/.test(event.key)) event.preventDefault();
+    });
+  }
+})();
+</script>
+{% endblock %}
