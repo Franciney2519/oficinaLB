@@ -58,17 +58,15 @@
                     {% endif %}
                   </td>
                   <td class="text-end">
-                    <button type="button" class="btn btn-sm btn-outline-primary me-1"
-                      onclick="editarFuncionario(
-                        {{ f.id_funcionario }},
-                        {{ f.nome | tojson }},
-                        {{ f.telefone | tojson }},
-                        {{ f.cargo | tojson }},
-                        {{ f.observacoes | tojson }},
-                        {{ (f.usuario or '') | tojson }},
-                        {{ (f.perfil or 'mecanico') | tojson }},
-                        {{ (f.senha_hash|string|length > 0) | tojson }}
-                      ); return false;">
+                    <button type="button" class="btn btn-sm btn-outline-primary me-1 btn-edit-funcionario"
+                      data-id="{{ f.id_funcionario }}"
+                      data-nome="{{ f.nome | e }}"
+                      data-telefone="{{ f.telefone | e }}"
+                      data-cargo="{{ f.cargo | e }}"
+                      data-observacoes="{{ f.observacoes | e }}"
+                      data-usuario="{{ (f.usuario or '') | e }}"
+                      data-perfil="{{ (f.perfil or 'mecanico') | e }}"
+                      data-has-senha="{{ (f.senha_hash|string|length > 0) | lower }}">
                       Editar
                     </button>
                     <form action="{{ url_for('toggle_funcionario', employee_id=f.id_funcionario) }}" method="post" class="d-inline">
@@ -162,7 +160,7 @@
 const URL_NOVO = "{{ url_for('funcionarios') }}";
 const URL_EDITAR_TPL = "{{ url_for('editar_funcionario', employee_id=9999999) }}";
 
-function editarFuncionario(id, nome, telefone, cargo, observacoes, usuario, perfil, hasSenha) {
+window.editarFuncionario = function(id, nome, telefone, cargo, observacoes, usuario, perfil, hasSenha) {
   document.getElementById('form-title').textContent = 'Editar funcionário';
   document.getElementById('f-nome').value = nome || '';
   document.getElementById('f-telefone').value = telefone || '';
@@ -177,7 +175,7 @@ function editarFuncionario(id, nome, telefone, cargo, observacoes, usuario, perf
   document.getElementById('btn-cancelar').classList.remove('d-none');
   document.getElementById('f-nome').focus();
   document.querySelector('.col-lg-5').scrollIntoView({ behavior: 'smooth' });
-}
+};
 
 function cancelarEdicao() {
   document.getElementById('form-title').textContent = 'Novo funcionário';
@@ -188,9 +186,27 @@ function cancelarEdicao() {
   document.getElementById('senha-hint').classList.add('d-none');
 }
 
-document.getElementById('btn-toggle-senha').addEventListener('click', function() {
+document.querySelectorAll('.btn-edit-funcionario').forEach(function(button) {
+  button.addEventListener('click', function() {
+    window.editarFuncionario(
+      this.dataset.id,
+      this.dataset.nome,
+      this.dataset.telefone,
+      this.dataset.cargo,
+      this.dataset.observacoes,
+      this.dataset.usuario,
+      this.dataset.perfil,
+      this.dataset.hasSenha === 'true'
+    );
+  });
+});
+
+document.getElementById('btn-toggle-senha')?.addEventListener('click', function() {
   const campo = document.getElementById('f-senha');
   const icone = document.getElementById('icone-senha');
+  if (!campo || !icone) {
+    return;
+  }
   if (campo.type === 'password') {
     campo.type = 'text';
     icone.classList.remove('bi-eye');
