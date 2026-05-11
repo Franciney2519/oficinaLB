@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0">
+    <i class="bi bi-person-plus me-2"></i>Solicitações de cadastro
+  </h4>
+  <span class="badge text-bg-warning">
+    {{ pendentes|length }} pendente{{ '' if pendentes|length == 1 else 's' }}
+  </span>
+</div>
+
+<div class="card mb-4">
+  <div class="card-header bg-light fw-semibold">Pendentes</div>
+  <div class="card-body p-0">
+    {% if pendentes|length == 0 %}
+      <p class="text-muted text-center py-4 mb-0">Nenhuma solicitação aguardando aprovação.</p>
+    {% else %}
+      <div class="table-responsive">
+        <table class="table mb-0 align-middle">
+          <thead>
+            <tr>
+              <th>Solicitado em</th>
+              <th>Nome</th>
+              <th>Usuário</th>
+              <th>Telefone</th>
+              <th>Cargo</th>
+              <th class="text-end">Ação</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in pendentes %}
+              <tr>
+                <td><small class="text-muted">{{ s.data_solicitacao.strftime('%d/%m/%Y %H:%M') if s.data_solicitacao else '-' }}</small></td>
+                <td>{{ s.nome or '-' }}</td>
+                <td><code>{{ s.usuario }}</code></td>
+                <td>{{ s.telefone or '-' }}</td>
+                <td>{{ s.cargo or '-' }}</td>
+                <td class="text-end">
+                  <form action="{{ url_for('aprovar_solicitacao', request_id=s.id_solicitacao) }}" method="post" class="d-inline"
+                        onsubmit="return confirm('Aprovar o cadastro de {{ s.nome or s.usuario }} como Mecânico?')">
+                    <button type="submit" class="btn btn-sm btn-success">
+                      <i class="bi bi-check-lg me-1"></i>Aprovar
+                    </button>
+                  </form>
+                  <button type="button" class="btn btn-sm btn-outline-danger ms-1"
+                          data-bs-toggle="modal" data-bs-target="#reprovaModal{{ s.id_solicitacao }}">
+                    <i class="bi bi-x-lg me-1"></i>Reprovar
+                  </button>
+
+                  <div class="modal fade" id="reprovaModal{{ s.id_solicitacao }}" tabindex="-1">
+                    <div class="modal-dialog">
+                      <form action="{{ url_for('reprovar_solicitacao', request_id=s.id_solicitacao) }}" method="post" class="modal-content text-start">
+                        <div class="modal-header">
+                          <h5 class="modal-title">Reprovar solicitação</h5>
+                          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                          <p class="mb-2">Reprovar o cadastro de <strong>{{ s.nome or s.usuario }}</strong>?</p>
+                          <label class="form-label">Motivo (opcional)</label>
+                          <textarea name="motivo" class="form-control" rows="3"
+                                    placeholder="Ex: dados incorretos, usuário não autorizado..."></textarea>
+                        </div>
+                        <div class="modal-footer">
+                          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                          <button type="submit" class="btn btn-danger">Reprovar</button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header bg-light fw-semibold">Histórico</div>
+  <div class="card-body p-0">
+    {% if historico|length == 0 %}
+      <p class="text-muted text-center py-3 mb-0">Sem decisões registradas ainda.</p>
+    {% else %}
+      <div class="table-responsive">
+        <table class="table mb-0 align-middle">
+          <thead>
+            <tr>
+              <th>Decidido em</th>
+              <th>Nome</th>
+              <th>Usuário</th>
+              <th>Status</th>
+              <th>Por</th>
+              <th>Motivo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in historico %}
+              <tr>
+                <td><small class="text-muted">{{ s.data_decisao.strftime('%d/%m/%Y %H:%M') if s.data_decisao else '-' }}</small></td>
+                <td>{{ s.nome or '-' }}</td>
+                <td><code>{{ s.usuario }}</code></td>
+                <td>
+                  {% if s.status == 'aprovada' %}
+                    <span class="badge text-bg-success">Aprovada</span>
+                  {% else %}
+                    <span class="badge text-bg-danger">Reprovada</span>
+                  {% endif %}
+                </td>
+                <td><small>{{ s.decidido_por or '-' }}</small></td>
+                <td><small class="text-muted">{{ s.motivo_reprovacao or '-' }}</small></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

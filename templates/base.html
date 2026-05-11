@@ -80,6 +80,19 @@
                 <i class="bi bi-person-badge me-1"></i>Funcionários
               </a>
             </li>
+            <li class="nav-item">
+              <a class="nav-link position-relative {% if ep == 'listar_solicitacoes' %}active-page{% endif %}"
+                 href="{{ url_for('listar_solicitacoes') }}" title="Solicitações de cadastro pendentes">
+                <i class="bi bi-person-plus me-1"></i>Solicitações
+                {% if pending_signup_count and pending_signup_count > 0 %}
+                  <span class="position-absolute top-50 start-100 translate-middle badge rounded-pill bg-danger"
+                        style="font-size:.65rem; margin-left:-6px;">
+                    {{ pending_signup_count }}
+                    <span class="visually-hidden">pendentes</span>
+                  </span>
+                {% endif %}
+              </a>
+            </li>
             {% endif %}
             <li class="nav-item">
               <a class="nav-link {% if ep == 'historico_servicos' %}active-page{% endif %}" href="{{ url_for('historico_servicos') }}">

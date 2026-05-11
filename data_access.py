@@ -64,6 +64,11 @@ FUNCIONARIOS_COLUMNS = [
     "id_funcionario", "nome", "telefone", "cargo", "observacoes", "ativo",
     "usuario", "senha_hash", "perfil",
 ]
+SOLICITACOES_CADASTRO_COLUMNS = [
+    "id_solicitacao", "nome", "telefone", "cargo", "usuario", "senha_hash",
+    "status", "data_solicitacao", "data_decisao", "decidido_por",
+    "motivo_reprovacao",
+]
 
 
 def _get_conn():
@@ -182,6 +187,25 @@ def init_db() -> None:
             cur.execute(
                 "CREATE UNIQUE INDEX IF NOT EXISTS funcionarios_usuario_unique "
                 "ON funcionarios (LOWER(usuario)) WHERE usuario IS NOT NULL AND usuario <> ''"
+            )
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS solicitacoes_cadastro (
+                    id_solicitacao    SERIAL PRIMARY KEY,
+                    nome              TEXT,
+                    telefone          TEXT,
+                    cargo             TEXT,
+                    usuario           TEXT,
+                    senha_hash        TEXT,
+                    status            TEXT DEFAULT 'pendente',
+                    data_solicitacao  TIMESTAMP DEFAULT NOW(),
+                    data_decisao      TIMESTAMP,
+                    decidido_por      TEXT,
+                    motivo_reprovacao TEXT
+                )
+            """)
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS solicitacoes_status_idx "
+                "ON solicitacoes_cadastro (status)"
             )
             # Migra carros já cadastrados nos clientes para a tabela veiculos (executa só uma vez)
             cur.execute("""
@@ -717,6 +741,121 @@ def deduplicate_employees() -> int:
             deleted = cur.rowcount
         conn.commit()
         return deleted
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+# ---------------------------
+# Solicitações de cadastro
+# ---------------------------
+
+def add_signup_request(data: Dict) -> int:
+    """Insere uma nova solicitação de cadastro com status 'pendente'."""
+    cols = ["nome", "telefone", "cargo", "usuario", "senha_hash"]
+    values = [data.get(c) for c in cols]
+    sql = (
+        f"INSERT INTO solicitacoes_cadastro ({', '.join(cols)}, status) "
+        f"VALUES ({', '.join(['%s'] * len(cols))}, 'pendente') "
+        "RETURNING id_solicitacao"
+    )
+    conn = _get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(sql, values)
+            new_id = cur.fetchone()["id_solicitacao"]
+        conn.commit()
+        return new_id
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def get_signup_requests(status: Optional[str] = None) -> List[Dict]:
+    """Lista solicitações; se status for informado, filtra por ele."""
+    conn = _get_conn()
+    try:
+        with conn.cursor() as cur:
+            if status:
+                cur.execute(
+                    "SELECT * FROM solicitacoes_cadastro WHERE status = %s "
+                    "ORDER BY data_solicitacao DESC",
+                    (status,),
+                )
+            else:
+                cur.execute(
+                    "SELECT * FROM solicitacoes_cadastro "
+                    "ORDER BY data_solicitacao DESC"
+                )
+            return [dict(row) for row in cur.fetchall()]
+    finally:
+        conn.close()
+
+
+def get_signup_request_by_id(request_id: int) -> Optional[Dict]:
+    conn = _get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT * FROM solicitacoes_cadastro WHERE id_solicitacao = %s",
+                (request_id,),
+            )
+            row = cur.fetchone()
+            return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def count_pending_signup_requests() -> int:
+    conn = _get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT COUNT(*) AS total FROM solicitacoes_cadastro WHERE status = 'pendente'"
+            )
+            row = cur.fetchone()
+            return int(row["total"]) if row else 0
+    finally:
+        conn.close()
+
+
+def has_pending_signup_for_username(usuario: str) -> bool:
+    if not usuario:
+        return False
+    conn = _get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT 1 FROM solicitacoes_cadastro "
+                "WHERE status = 'pendente' AND LOWER(usuario) = LOWER(%s) LIMIT 1",
+                (usuario.strip(),),
+            )
+            return cur.fetchone() is not None
+    finally:
+        conn.close()
+
+
+def mark_signup_request_decision(
+    request_id: int, status: str, decided_by: str, motivo: Optional[str] = None
+) -> bool:
+    """Atualiza status, decidido_por, data_decisao e motivo (quando reprovada)."""
+    conn = _get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE solicitacoes_cadastro "
+                "SET status = %s, decidido_por = %s, data_decisao = NOW(), "
+                "    motivo_reprovacao = %s "
+                "WHERE id_solicitacao = %s",
+                (status, decided_by, motivo, request_id),
+            )
+            updated = cur.rowcount > 0
+        conn.commit()
+        return updated
     except Exception:
         conn.rollback()
         raise

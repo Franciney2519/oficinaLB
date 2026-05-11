@@ -129,8 +129,14 @@
               Senha
               <span id="senha-hint" class="text-muted small d-none">(deixe vazio para manter a atual)</span>
             </label>
-            <input type="password" name="senha" id="f-senha" class="form-control"
-                   placeholder="mínimo 6 caracteres" autocomplete="new-password" minlength="6">
+            <div class="input-group">
+              <input type="password" name="senha" id="f-senha" class="form-control"
+                     placeholder="mínimo 6 caracteres" autocomplete="new-password" minlength="6">
+              <button class="btn btn-outline-secondary" type="button" id="btn-toggle-senha"
+                      title="Mostrar/ocultar senha" aria-label="Mostrar senha">
+                <i class="bi bi-eye" id="icone-senha"></i>
+              </button>
+            </div>
           </div>
           <div class="mb-3">
             <label class="form-label">Perfil</label>
@@ -177,5 +183,19 @@ function cancelarEdicao() {
   document.getElementById('btn-cancelar').classList.add('d-none');
   document.getElementById('senha-hint').classList.add('d-none');
 }
+
+document.getElementById('btn-toggle-senha').addEventListener('click', function() {
+  const campo = document.getElementById('f-senha');
+  const icone = document.getElementById('icone-senha');
+  if (campo.type === 'password') {
+    campo.type = 'text';
+    icone.classList.remove('bi-eye');
+    icone.classList.add('bi-eye-slash');
+  } else {
+    campo.type = 'password';
+    icone.classList.remove('bi-eye-slash');
+    icone.classList.add('bi-eye');
+  }
+});
 </script>
 {% endblock %}

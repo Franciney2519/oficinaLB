@@ -151,9 +151,12 @@ def _register_login_failure(ip: str) -> None:
         entry["blocked_until"] = time.monotonic() + _LOGIN_BLOCK_SECONDS
 
 
+_PUBLIC_PATHS = {"/favicon.ico", "/login", "/logout", "/solicitar-cadastro"}
+
+
 @app.before_request
 def require_login():
-    if request.path.startswith("/static") or request.path in ("/favicon.ico", "/login", "/logout"):
+    if request.path.startswith("/static") or request.path in _PUBLIC_PATHS:
         return
     if not session.get("logged_in"):
         return redirect("/login")
@@ -238,6 +241,145 @@ def logout():
     return resp
 
 
+@app.route("/solicitar-cadastro", methods=["GET", "POST"])
+def solicitar_cadastro():
+    """Tela pública para que um funcionário solicite acesso ao sistema.
+
+    A solicitação fica pendente até que um admin aprove ou reprove.
+    """
+    form_data = {"nome": "", "telefone": "", "cargo": "", "usuario": ""}
+    if request.method == "POST":
+        nome = (request.form.get("nome") or "").strip()
+        telefone = (request.form.get("telefone") or "").strip()
+        cargo = (request.form.get("cargo") or "").strip()
+        usuario = (request.form.get("usuario") or "").strip()
+        senha = request.form.get("senha") or ""
+        confirmacao = request.form.get("senha_confirmacao") or ""
+        form_data = {"nome": nome, "telefone": telefone, "cargo": cargo, "usuario": usuario}
+
+        if not nome or not usuario or not senha:
+            return render_template(
+                "solicitar_cadastro.html",
+                form_data=form_data,
+                error="Preencha nome, usuário e senha.",
+            )
+        if not EMPLOYEE_USERNAME_RE.match(usuario):
+            return render_template(
+                "solicitar_cadastro.html",
+                form_data=form_data,
+                error="Usuário deve ter 3 a 40 caracteres (letras, números, ponto, hífen ou underline).",
+            )
+        if len(senha) < 6:
+            return render_template(
+                "solicitar_cadastro.html",
+                form_data=form_data,
+                error="A senha precisa ter pelo menos 6 caracteres.",
+            )
+        if senha != confirmacao:
+            return render_template(
+                "solicitar_cadastro.html",
+                form_data=form_data,
+                error="As senhas não coincidem.",
+            )
+
+        try:
+            existing_employee = dal.get_employee_by_username(usuario)
+            existing_pending = dal.has_pending_signup_for_username(usuario)
+        except Exception:  # pylint: disable=broad-except
+            existing_employee = None
+            existing_pending = False
+        if existing_employee or existing_pending:
+            return render_template(
+                "solicitar_cadastro.html",
+                form_data=form_data,
+                error="Este usuário já está em uso ou aguardando aprovação. Escolha outro.",
+            )
+
+        payload = {
+            "nome": nome,
+            "telefone": telefone,
+            "cargo": cargo,
+            "usuario": usuario,
+            "senha_hash": generate_password_hash(senha),
+        }
+        dal.add_signup_request(payload)
+        return render_template("solicitar_cadastro.html", form_data={}, success=True)
+
+    return render_template("solicitar_cadastro.html", form_data=form_data)
+
+
+@app.route("/solicitacoes")
+@require_admin
+def listar_solicitacoes():
+    """Lista todas as solicitações de cadastro para o admin gerenciar."""
+    pendentes = dal.get_signup_requests(status="pendente")
+    historico = [
+        s for s in dal.get_signup_requests()
+        if s.get("status") != "pendente"
+    ]
+    return render_template(
+        "solicitacoes.html",
+        pendentes=pendentes,
+        historico=historico,
+    )
+
+
+def _current_admin_label() -> str:
+    """Identifica quem decidiu uma solicitação, pra registro de auditoria."""
+    name = session.get("user_name") or "admin"
+    user_id = session.get("user_id")
+    return f"{name} (#{user_id})" if user_id else name
+
+
+@app.route("/solicitacoes/<int:request_id>/aprovar", methods=["POST"])
+@require_admin
+def aprovar_solicitacao(request_id: int):
+    solicitacao = dal.get_signup_request_by_id(request_id)
+    if not solicitacao or solicitacao.get("status") != "pendente":
+        flash("Solicitação não encontrada ou já decidida.", "warning")
+        return redirect(url_for("listar_solicitacoes"))
+
+    usuario = (solicitacao.get("usuario") or "").strip()
+    if dal.get_employee_by_username(usuario):
+        flash(
+            f"Não foi possível aprovar: o usuário '{usuario}' já existe como funcionário ativo.",
+            "danger",
+        )
+        return redirect(url_for("listar_solicitacoes"))
+
+    employee_payload = {
+        "nome": solicitacao.get("nome") or usuario,
+        "telefone": solicitacao.get("telefone") or "",
+        "cargo": solicitacao.get("cargo") or "",
+        "observacoes": "",
+        "ativo": True,
+        "usuario": usuario,
+        "senha_hash": solicitacao.get("senha_hash"),
+        "perfil": ROLE_MECANICO,
+    }
+    dal.add_employee(employee_payload)
+    dal.mark_signup_request_decision(request_id, "aprovada", _current_admin_label())
+    flash(
+        f"Cadastro de '{solicitacao.get('nome') or usuario}' aprovado. Perfil: Mecânico.",
+        "success",
+    )
+    return redirect(url_for("listar_solicitacoes"))
+
+
+@app.route("/solicitacoes/<int:request_id>/reprovar", methods=["POST"])
+@require_admin
+def reprovar_solicitacao(request_id: int):
+    solicitacao = dal.get_signup_request_by_id(request_id)
+    if not solicitacao or solicitacao.get("status") != "pendente":
+        flash("Solicitação não encontrada ou já decidida.", "warning")
+        return redirect(url_for("listar_solicitacoes"))
+
+    motivo = (request.form.get("motivo") or "").strip() or None
+    dal.mark_signup_request_decision(request_id, "reprovada", _current_admin_label(), motivo)
+    flash("Solicitação reprovada.", "info")
+    return redirect(url_for("listar_solicitacoes"))
+
+
 # Informações fixas usadas no PDF do orçamento.
 COMPANY_INFO = {
     "razao_social": "LB AUTOCAR",
@@ -263,6 +405,17 @@ def format_brl(value) -> str:
 def inject_company_info():
     """Disponibiliza dados da empresa para todos os templates."""
     return {"company_info": COMPANY_INFO}
+
+
+@app.context_processor
+def inject_pending_signup_count():
+    """Disponibiliza a contagem de solicitações pendentes para o admin."""
+    if session.get("role") != ROLE_ADMIN:
+        return {"pending_signup_count": 0}
+    try:
+        return {"pending_signup_count": dal.count_pending_signup_requests()}
+    except Exception:  # pylint: disable=broad-except
+        return {"pending_signup_count": 0}
 LOGO_SOURCE_PATH = os.path.join(PROJECT_DIR, "static", "logo.png")
 TAXA_CARTAO_CREDITO = 0.03
 VALIDADE_PADRAO = "5 dias corridos"
