@@ -7,66 +7,120 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <style>
-    body { background: #212529; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 2rem 0; }
-    .card { width: 100%; max-width: 460px; border-radius: 12px; }
-    .logo-title { font-size: 1.4rem; font-weight: 700; letter-spacing: 1px; }
-    .toggle-senha { cursor: pointer; }
+    :root {
+      --lb-black:       #0d0d0d;
+      --lb-carbon:      #1a1a1a;
+      --lb-maroon:      #4a0a0a;
+      --lb-red:         #c80a0a;
+      --lb-red-bright:  #e51a1a;
+      --lb-white:       #ffffff;
+      --lb-grey:        #8a8a8a;
+    }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: linear-gradient(135deg, var(--lb-maroon) 0%, var(--lb-black) 32%, var(--lb-carbon) 100%);
+      color: var(--lb-white);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1rem;
+    }
+    .card-wrapper {
+      width: 100%;
+      max-width: 480px;
+      background: var(--lb-carbon);
+      border-radius: 14px;
+      padding: 2.5rem 2rem;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.6);
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+    .brand-title {
+      font-size: 1.5rem; font-weight: 700; letter-spacing: 1px;
+      color: var(--lb-white); margin-bottom: .25rem; text-align: center;
+    }
+    .brand-title .accent { color: var(--lb-red-bright); }
+    .subtitle { color: var(--lb-grey); font-size: .85rem; text-align: center; margin-bottom: 1.5rem; }
+
+    .form-label { color: #c8c8c8; font-size: .8rem; letter-spacing: .5px; text-transform: uppercase; font-weight: 600; margin-bottom: .35rem; }
+    .form-control, .form-select {
+      background-color: var(--lb-black); border: 1px solid rgba(255,255,255,0.1);
+      color: var(--lb-white); padding: .6rem .8rem;
+    }
+    .form-control:focus, .form-select:focus {
+      background-color: var(--lb-black); color: var(--lb-white);
+      border-color: var(--lb-red-bright); box-shadow: 0 0 0 .15rem rgba(229,26,26,.25);
+    }
+    .form-control::placeholder { color: #555; }
+    .form-text { color: var(--lb-grey); }
+
+    .btn-lb-primary {
+      background: linear-gradient(135deg, var(--lb-red-bright) 0%, var(--lb-red) 100%);
+      color: var(--lb-white); border: none; padding: .7rem 1.25rem;
+      font-weight: 600; letter-spacing: .5px; text-transform: uppercase;
+    }
+    .btn-lb-primary:hover { color: var(--lb-white); filter: brightness(1.1); box-shadow: 0 8px 20px rgba(229,26,26,.35); }
+
+    .btn-toggle-senha { background: var(--lb-black); border: 1px solid rgba(255,255,255,0.1); color: var(--lb-grey); }
+    .btn-toggle-senha:hover { color: var(--lb-white); background: #222; }
+
+    .back-link { display: block; text-align: center; margin-top: 1rem; color: var(--lb-grey); text-decoration: none; font-size: .85rem; }
+    .back-link:hover { color: #c8c8c8; }
+
+    .alert { background: rgba(229, 26, 26, 0.12); border: 1px solid rgba(229, 26, 26, 0.4); color: #ffb4b4; font-size: .85rem; }
+    .alert-success { background: rgba(40, 167, 69, 0.12); border-color: rgba(40, 167, 69, 0.4); color: #b4f0c0; }
   </style>
 </head>
 <body>
-  <div class="card shadow-lg p-4">
-    <div class="text-center mb-4">
-      <div class="logo-title text-dark">{{ company_info.razao_social }}</div>
-      <small class="text-muted">Solicitação de cadastro</small>
-    </div>
+  <div class="card-wrapper">
+    <div class="brand-title">LB <span class="accent">AUTOCAR</span></div>
+    <p class="subtitle">Solicitação de cadastro</p>
 
     {% if success %}
-      <div class="alert alert-success">
+      <div class="alert alert-success py-3">
         <i class="bi bi-check-circle me-1"></i>
         Solicitação enviada! Aguarde a aprovação do administrador para acessar o sistema.
       </div>
-      <a href="{{ url_for('login') }}" class="btn btn-outline-dark w-100">Voltar para o login</a>
+      <a href="{{ url_for('login') }}" class="btn btn-lb-primary w-100 text-center">Voltar para o login</a>
     {% else %}
 
       {% if error %}
-        <div class="alert alert-danger py-2">{{ error }}</div>
+        <div class="alert py-2 mb-3">{{ error }}</div>
       {% endif %}
 
-      <p class="text-muted small">
+      <p class="text-muted small mb-3" style="color: var(--lb-grey) !important;">
         Preencha os dados abaixo. Seu acesso fica liberado assim que o administrador aprovar a solicitação.
       </p>
 
       <form method="POST">
         <div class="mb-3">
-          <label class="form-label fw-semibold">Nome completo</label>
-          <input type="text" name="nome" class="form-control" required
-                 value="{{ form_data.nome or '' }}">
+          <label class="form-label">Nome completo</label>
+          <input type="text" name="nome" class="form-control" required value="{{ form_data.nome or '' }}">
         </div>
         <div class="row g-2">
           <div class="col-md-6 mb-3">
-            <label class="form-label fw-semibold">Telefone</label>
-            <input type="text" name="telefone" class="form-control"
-                   placeholder="(92) 9...." value="{{ form_data.telefone or '' }}">
+            <label class="form-label">Telefone</label>
+            <input type="text" name="telefone" class="form-control" placeholder="(92) 9...." value="{{ form_data.telefone or '' }}">
           </div>
           <div class="col-md-6 mb-3">
-            <label class="form-label fw-semibold">Cargo</label>
-            <input type="text" name="cargo" class="form-control"
-                   placeholder="Mecânico, eletricista..." value="{{ form_data.cargo or '' }}">
+            <label class="form-label">Cargo</label>
+            <input type="text" name="cargo" class="form-control" placeholder="Mecânico, eletricista..." value="{{ form_data.cargo or '' }}">
           </div>
         </div>
         <div class="mb-3">
-          <label class="form-label fw-semibold">Usuário desejado</label>
+          <label class="form-label">Usuário desejado</label>
           <input type="text" name="usuario" class="form-control" required autocomplete="off"
                  placeholder="ex: joao.silva" pattern="[A-Za-z0-9_.\-]{3,40}"
                  value="{{ form_data.usuario or '' }}">
           <div class="form-text">3 a 40 caracteres: letras, números, ponto, hífen ou underline.</div>
         </div>
         <div class="mb-3">
-          <label class="form-label fw-semibold">Senha</label>
+          <label class="form-label">Senha</label>
           <div class="input-group">
-            <input type="password" name="senha" id="campo-senha" class="form-control" required minlength="6"
-                   autocomplete="new-password">
-            <button class="btn btn-outline-secondary toggle-senha" type="button"
+            <input type="password" name="senha" id="campo-senha" class="form-control" required minlength="6" autocomplete="new-password">
+            <button class="btn btn-toggle-senha" type="button"
                     data-target="campo-senha" data-icon="icone-senha"
                     aria-label="Mostrar senha" title="Mostrar/ocultar senha">
               <i class="bi bi-eye" id="icone-senha"></i>
@@ -75,11 +129,10 @@
           <div class="form-text">Mínimo 6 caracteres.</div>
         </div>
         <div class="mb-4">
-          <label class="form-label fw-semibold">Confirmar senha</label>
+          <label class="form-label">Confirmar senha</label>
           <div class="input-group">
-            <input type="password" name="senha_confirmacao" id="campo-confirmacao" class="form-control" required minlength="6"
-                   autocomplete="new-password">
-            <button class="btn btn-outline-secondary toggle-senha" type="button"
+            <input type="password" name="senha_confirmacao" id="campo-confirmacao" class="form-control" required minlength="6" autocomplete="new-password">
+            <button class="btn btn-toggle-senha" type="button"
                     data-target="campo-confirmacao" data-icon="icone-confirmacao"
                     aria-label="Mostrar senha" title="Mostrar/ocultar senha">
               <i class="bi bi-eye" id="icone-confirmacao"></i>
@@ -87,14 +140,14 @@
           </div>
         </div>
 
-        <button type="submit" class="btn btn-dark w-100">Enviar solicitação</button>
-        <a href="{{ url_for('login') }}" class="btn btn-link w-100 mt-2 text-muted">Voltar para o login</a>
+        <button type="submit" class="btn btn-lb-primary w-100">Enviar solicitação</button>
+        <a href="{{ url_for('login') }}" class="back-link">Voltar para o login</a>
       </form>
     {% endif %}
   </div>
 
   <script>
-    document.querySelectorAll('.toggle-senha').forEach(function(btn) {
+    document.querySelectorAll('.btn-toggle-senha').forEach(function(btn) {
       btn.addEventListener('click', function() {
         const campo = document.getElementById(btn.dataset.target);
         const icone = document.getElementById(btn.dataset.icon);

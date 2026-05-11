@@ -1455,6 +1455,67 @@ def historico_cliente(client_id: int):
     )
 
 
+@app.route("/meus-servicos")
+def meus_servicos():
+    """Tela pessoal: serviços realizados pelo usuário logado."""
+    nome_logado = session.get("user_name") or ""
+    nome_normalizado = _normalize_person_name(nome_logado)
+
+    services_df = dal.get_all_services()
+    if "responsavel" not in services_df.columns:
+        services_df["responsavel"] = ""
+
+    services_df["responsavel_norm"] = (
+        services_df["responsavel"].fillna("").astype(str).apply(_normalize_person_name)
+    )
+    mine_df = services_df[services_df["responsavel_norm"] == nome_normalizado].copy()
+
+    mine_df["data_execucao_dt"] = pd.to_datetime(mine_df["data_execucao"], errors="coerce")
+    mine_df["valor_num"] = pd.to_numeric(mine_df.get("valor"), errors="coerce").fillna(0)
+
+    today = datetime.today()
+    month_mask = (
+        (mine_df["data_execucao_dt"].dt.month == today.month)
+        & (mine_df["data_execucao_dt"].dt.year == today.year)
+    )
+
+    total_servicos = int(len(mine_df))
+    servicos_mes = int(month_mask.sum())
+    valor_total = float(mine_df["valor_num"].sum())
+    valor_mes = float(mine_df.loc[month_mask, "valor_num"].sum())
+
+    clients_df = dal.get_all_clients().fillna("")
+    clients_lookup = {
+        _coerce_int(row.get("id_cliente")): row.get("nome", "")
+        for row in clients_df.to_dict(orient="records")
+    }
+
+    services_list = []
+    for row in mine_df.sort_values("data_execucao_dt", ascending=False).to_dict(orient="records"):
+        services_list.append({
+            "id_servico": row.get("id_servico"),
+            "id_orcamento": row.get("id_orcamento"),
+            "id_cliente": row.get("id_cliente"),
+            "cliente_nome": clients_lookup.get(_coerce_int(row.get("id_cliente")), "Cliente removido"),
+            "data_formatada": _format_date(row.get("data_execucao")),
+            "descricao": row.get("descricao_servico") or "-",
+            "tipo": row.get("tipo_servico") or "-",
+            "valor": float(row.get("valor_num") or 0),
+        })
+
+    return render_template(
+        "meus_servicos.html",
+        nome_logado=nome_logado,
+        total_servicos=total_servicos,
+        servicos_mes=servicos_mes,
+        valor_total=valor_total,
+        valor_mes=valor_mes,
+        services=services_list,
+        mes_atual=MONTH_NAMES[today.month - 1],
+        ano_atual=today.year,
+    )
+
+
 @app.route("/funcionarios", methods=["GET", "POST"])
 @require_admin
 def funcionarios():

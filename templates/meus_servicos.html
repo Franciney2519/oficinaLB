@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0">
+    <i class="bi bi-tools me-2"></i>Meus serviços
+    <small class="text-muted fs-6 fw-normal">— {{ nome_logado }}</small>
+  </h4>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-3 col-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="text-muted small text-uppercase">Total</div>
+        <div class="display-6 fw-bold mt-1">{{ total_servicos }}</div>
+        <div class="text-muted small">serviços realizados</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3 col-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="text-muted small text-uppercase">{{ mes_atual }}/{{ ano_atual }}</div>
+        <div class="display-6 fw-bold mt-1 text-primary">{{ servicos_mes }}</div>
+        <div class="text-muted small">no mês atual</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3 col-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="text-muted small text-uppercase">Valor total</div>
+        <div class="h4 fw-bold mt-1">{{ valor_total | brl }}</div>
+        <div class="text-muted small">em serviços executados</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3 col-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="text-muted small text-uppercase">Valor no mês</div>
+        <div class="h4 fw-bold mt-1 text-primary">{{ valor_mes | brl }}</div>
+        <div class="text-muted small">{{ mes_atual }}/{{ ano_atual }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header bg-light fw-semibold">
+    <i class="bi bi-list-check me-1"></i>Histórico dos meus serviços
+  </div>
+  <div class="card-body p-0">
+    {% if services|length == 0 %}
+      <p class="text-muted text-center py-4 mb-0">
+        Nenhum serviço registrado com seu nome ainda.<br>
+        <small>Os serviços aparecem aqui quando um orçamento é efetivado com você como responsável.</small>
+      </p>
+    {% else %}
+      <div class="table-responsive">
+        <table class="table mb-0 align-middle">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Cliente</th>
+              <th>Tipo</th>
+              <th>Descrição</th>
+              <th class="text-end">Valor</th>
+              <th class="text-end">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in services %}
+              <tr>
+                <td><small>{{ s.data_formatada }}</small></td>
+                <td>
+                  {% if s.id_cliente %}
+                    <a href="{{ url_for('historico_cliente', client_id=s.id_cliente) }}" class="text-decoration-none">
+                      {{ s.cliente_nome }}
+                    </a>
+                  {% else %}
+                    <span class="text-muted">{{ s.cliente_nome }}</span>
+                  {% endif %}
+                </td>
+                <td><span class="badge text-bg-light border">{{ s.tipo }}</span></td>
+                <td class="small">{{ s.descricao }}</td>
+                <td class="text-end fw-semibold">{{ s.valor | brl }}</td>
+                <td class="text-end">
+                  {% if s.id_orcamento %}
+                    <a href="{{ url_for('detalhes_orcamento', budget_id=s.id_orcamento) }}"
+                       class="btn btn-sm btn-outline-secondary" title="Ver orçamento de origem">
+                      <i class="bi bi-file-earmark-text"></i>
+                    </a>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
