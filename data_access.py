@@ -154,6 +154,7 @@ def init_db() -> None:
                     id_servico        SERIAL PRIMARY KEY,
                     id_orcamento      INTEGER,
                     id_cliente        INTEGER,
+                    id_veiculo        INTEGER,
                     data_execucao     TEXT,
                     descricao_servico TEXT,
                     tipo_servico      TEXT,
@@ -161,6 +162,7 @@ def init_db() -> None:
                     observacoes       TEXT,
                     responsavel       TEXT,
                     status            TEXT,
+                    carro_km          TEXT,
                     produto_descricao TEXT,
                     produto_valor     NUMERIC,
                     produto_itens     TEXT,
@@ -169,6 +171,7 @@ def init_db() -> None:
             """)
             cur.execute("ALTER TABLE servicos ADD COLUMN IF NOT EXISTS status TEXT")
             cur.execute("ALTER TABLE servicos ADD COLUMN IF NOT EXISTS carro_km TEXT")
+            cur.execute("ALTER TABLE servicos ADD COLUMN IF NOT EXISTS id_veiculo INTEGER")
             cur.execute("ALTER TABLE servicos ADD COLUMN IF NOT EXISTS produto_descricao TEXT")
             cur.execute("ALTER TABLE servicos ADD COLUMN IF NOT EXISTS produto_valor NUMERIC")
             cur.execute("ALTER TABLE servicos ADD COLUMN IF NOT EXISTS produto_itens TEXT")
