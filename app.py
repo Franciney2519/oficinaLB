@@ -1403,7 +1403,7 @@ def dashboard():
                 budget_dict = row.to_dict()
                 budget_dict["status_display"] = _budget_status_display(budget_dict.get("status", ""))
                 budget_dict["cliente_nome"] = clients_lookup.get(_coerce_int(row.get("id_cliente")), "Cliente removido")
-                budget_dict["valor_display"] = _format_brl(_coerce_float(row.get("valor_total", 0)))
+                budget_dict["valor_display"] = format_brl(_coerce_float(row.get("valor_total", 0)))
                 pending_budgets.append(budget_dict)
 
     # Serviços pendentes de aprovação (status = Pendente)
@@ -1420,7 +1420,7 @@ def dashboard():
             if status_norm == "pendente":
                 service_dict = row.to_dict()
                 service_dict["cliente_nome"] = clients_lookup.get(_coerce_int(row.get("id_cliente")), "Cliente removido")
-                service_dict["valor_display"] = _format_brl(_coerce_float(row.get("valor", 0)))
+                service_dict["valor_display"] = format_brl(_coerce_float(row.get("valor", 0)))
                 pending_services.append(service_dict)
 
     latest_budget = None
