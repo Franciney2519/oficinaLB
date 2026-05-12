@@ -34,6 +34,38 @@
 </div>
 
 <div class="row g-3 mb-3">
+  <div class="col-12">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body py-3">
+        <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-3">
+          <div>
+            <h5 class="card-title mb-1">Ações rápidas</h5>
+            <p class="text-muted mb-0">Navegue diretamente para os principais controles do sistema.</p>
+          </div>
+          <div class="d-flex flex-wrap gap-2">
+            <a href="{{ url_for('clientes') }}" class="btn btn-outline-primary btn-sm">
+              <i class="bi bi-people me-1"></i>Clientes
+            </a>
+            <a href="{{ url_for('listar_orcamentos') }}" class="btn btn-outline-success btn-sm">
+              <i class="bi bi-file-earmark-text me-1"></i>Orçamentos
+            </a>
+            <a href="{{ url_for('financeiro') }}" class="btn btn-outline-info btn-sm">
+              <i class="bi bi-cash-stack me-1"></i>Financeiro
+            </a>
+            <a href="{{ url_for('listar_solicitacoes') }}" class="btn btn-outline-warning btn-sm">
+              <i class="bi bi-person-plus me-1"></i>Solicitações
+            </a>
+            <a href="{{ url_for('funcionarios') }}" class="btn btn-outline-secondary btn-sm">
+              <i class="bi bi-person-badge me-1"></i>Funcionários
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
   <div class="col-md-4">
     <div class="card text-bg-primary h-100">
       <div class="card-body d-flex justify-content-between align-items-start gap-3">
@@ -76,32 +108,38 @@
 <div class="row g-3 mb-3">
   {% if pending_budgets %}
   <div class="col-lg-6">
-    <div class="card border-warning">
-      <div class="card-header bg-warning text-dark fw-semibold">
-        <i class="bi bi-file-earmark-text me-1"></i>Orçamentos aguardando aprovação ({{ pending_budgets|length }})
+    <div class="card border-warning h-100">
+      <div class="card-header d-flex justify-content-between align-items-center bg-warning text-dark fw-semibold">
+        <div>
+          <i class="bi bi-file-earmark-text me-1"></i>Orçamentos aguardando aprovação
+        </div>
+        <span class="badge bg-white text-warning border rounded-pill py-2 px-3">{{ pending_budgets|length }}</span>
       </div>
       <div class="card-body p-0">
         {% if pending_budgets|length > 0 %}
           <div class="table-responsive">
-            <table class="table table-sm mb-0">
+            <table class="table table-borderless table-sm mb-0 align-middle">
               <thead class="table-light">
                 <tr>
                   <th>Cliente</th>
-                  <th>Valor</th>
-                  <th>Ações</th>
+                  <th class="text-end">Valor</th>
+                  <th class="text-end">Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {% for orcamento in pending_budgets[:5] %}
                 <tr>
-                  <td>{{ orcamento.cliente_nome }}</td>
+                  <td>
+                    <div class="fw-semibold">{{ orcamento.cliente_nome }}</div>
+                    <small class="text-muted">#{{ orcamento.id_orcamento }}</small>
+                  </td>
                   <td class="text-end">{{ orcamento.valor_display }}</td>
                   <td class="text-end">
-                    <a href="{{ url_for('detalhes_orcamento', budget_id=orcamento.id_orcamento) }}" class="btn btn-sm btn-outline-primary">
+                    <a href="{{ url_for('detalhes_orcamento', budget_id=orcamento.id_orcamento) }}" class="btn btn-sm btn-outline-primary me-1" title="Ver detalhes do orçamento">
                       <i class="bi bi-eye"></i>
                     </a>
                     <form action="{{ url_for('aprovar_orcamento_admin', budget_id=orcamento.id_orcamento) }}" method="post" class="d-inline">
-                      <button type="submit" class="btn btn-sm btn-primary" onclick="return confirm('Aprovar este orçamento?')">
+                      <button type="submit" class="btn btn-sm btn-primary" onclick="return confirm('Aprovar este orçamento?')" title="Aprovar orçamento">
                         <i class="bi bi-check-lg"></i>
                       </button>
                     </form>
@@ -116,6 +154,8 @@
             <a href="{{ url_for('listar_orcamentos') }}" class="text-decoration-none small">Ver todos os {{ pending_budgets|length }} orçamentos →</a>
           </div>
           {% endif %}
+        {% else %}
+          <div class="p-3 text-center text-muted">Nenhum orçamento pendente encontrado.</div>
         {% endif %}
       </div>
     </div>
@@ -124,30 +164,36 @@
 
   {% if pending_services %}
   <div class="col-lg-6">
-    <div class="card border-info">
-      <div class="card-header bg-info text-white fw-semibold">
-        <i class="bi bi-wrench me-1"></i>Serviços aguardando finalização ({{ pending_services|length }})
+    <div class="card border-info h-100">
+      <div class="card-header d-flex justify-content-between align-items-center bg-info text-white fw-semibold">
+        <div>
+          <i class="bi bi-wrench me-1"></i>Serviços aguardando finalização
+        </div>
+        <span class="badge bg-white text-info border rounded-pill py-2 px-3">{{ pending_services|length }}</span>
       </div>
       <div class="card-body p-0">
         {% if pending_services|length > 0 %}
           <div class="table-responsive">
-            <table class="table table-sm mb-0">
+            <table class="table table-borderless table-sm mb-0 align-middle">
               <thead class="table-light">
                 <tr>
                   <th>Cliente</th>
                   <th>Descrição</th>
-                  <th>Valor</th>
-                  <th>Ação</th>
+                  <th class="text-end">Valor</th>
+                  <th class="text-end">Ação</th>
                 </tr>
               </thead>
               <tbody>
                 {% for servico in pending_services[:5] %}
                 <tr>
-                  <td>{{ servico.cliente_nome }}</td>
-                  <td class="text-truncate" style="max-width:150px;" title="{{ servico.descricao_servico }}">{{ servico.descricao_servico }}</td>
+                  <td>
+                    <div class="fw-semibold">{{ servico.cliente_nome }}</div>
+                    <small class="text-muted">ID {{ servico.id_servico }}</small>
+                  </td>
+                  <td class="text-truncate" style="max-width:180px;" title="{{ servico.descricao_servico }}">{{ servico.descricao_servico }}</td>
                   <td class="text-end">{{ servico.valor_display }}</td>
                   <td class="text-end">
-                    <a href="{{ url_for('finalizar_servico', service_id=servico.id_servico) }}" class="btn btn-sm btn-info">
+                    <a href="{{ url_for('finalizar_servico', service_id=servico.id_servico) }}" class="btn btn-sm btn-info" title="Finalizar serviço">
                       <i class="bi bi-pencil"></i>
                     </a>
                   </td>
@@ -161,6 +207,8 @@
             <a href="{{ url_for('historico_servicos') }}" class="text-decoration-none small">Ver todos os {{ pending_services|length }} serviços →</a>
           </div>
           {% endif %}
+        {% else %}
+          <div class="p-3 text-center text-muted">Nenhum serviço aguardando finalização.</div>
         {% endif %}
       </div>
     </div>
@@ -218,13 +266,53 @@
     </div>
     <div class="card mb-3">
       <div class="card-body">
-        <h5 class="card-title">Ações rápidas</h5>
-        <div class="d-grid gap-2">
-          <a href="{{ url_for('clientes') }}" class="btn btn-outline-primary">
-            <i class="bi bi-people me-1"></i>Cadastro de clientes
+        <h5 class="card-title mb-3">Último orçamento</h5>
+        {% if latest_budget %}
+          <div class="mb-3">
+            <div class="d-flex justify-content-between align-items-start gap-3 mb-2">
+              <div>
+                <strong>Orçamento #{{ latest_budget.id_orcamento }}</strong>
+                <div class="text-muted small">{{ latest_budget.data }}</div>
+              </div>
+              <span class="badge bg-{{ 'success' if latest_budget.is_finalizado else 'secondary' if latest_budget.is_reprovado else 'warning' }} text-capitalize">
+                {{ latest_budget.status or 'Sem status' }}
+              </span>
+            </div>
+            <div class="d-flex justify-content-between gap-2">
+              <small class="text-muted">Cliente</small>
+              <small class="fw-semibold">{{ latest_budget.cliente }}</small>
+            </div>
+          </div>
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <span class="text-muted">Valor total</span>
+            <span class="fw-semibold">{{ latest_budget.valor | brl }}</span>
+          </div>
+          <a href="{{ url_for('detalhes_orcamento', budget_id=latest_budget.id_orcamento) }}" class="btn btn-outline-primary btn-sm w-100">
+            Ver orçamento
           </a>
-          <a href="{{ url_for('financeiro') }}" class="btn btn-outline-info">
-            <i class="bi bi-cash-stack me-1"></i>Controle financeiro
+        {% else %}
+          <p class="text-muted mb-0">Nenhum orçamento registrado ainda.</p>
+        {% endif %}
+      </div>
+    </div>
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title mb-3">Ações rápidas</h5>
+        <div class="d-grid gap-2">
+          <a href="{{ url_for('clientes') }}" class="btn btn-outline-primary btn-sm text-start">
+            <i class="bi bi-people me-1"></i>Clientes
+          </a>
+          <a href="{{ url_for('listar_orcamentos') }}" class="btn btn-outline-success btn-sm text-start">
+            <i class="bi bi-file-earmark-text me-1"></i>Orçamentos
+          </a>
+          <a href="{{ url_for('financeiro') }}" class="btn btn-outline-info btn-sm text-start">
+            <i class="bi bi-cash-stack me-1"></i>Financeiro
+          </a>
+          <a href="{{ url_for('listar_solicitacoes') }}" class="btn btn-outline-warning btn-sm text-start">
+            <i class="bi bi-person-plus me-1"></i>Solicitações
+          </a>
+          <a href="{{ url_for('funcionarios') }}" class="btn btn-outline-secondary btn-sm text-start">
+            <i class="bi bi-person-badge me-1"></i>Funcionários
           </a>
         </div>
       </div>
