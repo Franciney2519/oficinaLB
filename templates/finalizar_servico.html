@@ -2,7 +2,7 @@
 
 {% block content %}
 <div class="row">
-  <div class="col-lg-8">
+  <div class="col-lg-9">
     <div class="card mb-3">
       <div class="card-body">
         <h5 class="card-title">Conferir serviço direto {{ service_ref }}</h5>
@@ -12,35 +12,97 @@
 
         <form method="post">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          {% for item in services %}
-            <div class="border rounded p-3 mb-3">
-              <input type="hidden" name="service_id[]" value="{{ item.id_servico }}">
-              <div class="d-flex justify-content-between align-items-center mb-2">
-                <strong>Serviço {{ loop.index }}</strong>
-                <span class="badge text-bg-{{ 'warning' if (item.status or '')|lower == 'pendente' else 'secondary' }}">
-                  {{ item.status or 'Sem status' }}
-                </span>
+
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="fw-bold mb-0">Serviços da OS</h6>
+            <button type="button" class="btn btn-sm btn-outline-primary" id="btn-adicionar-servico-admin">
+              <i class="bi bi-plus-circle me-1"></i>Adicionar serviço
+            </button>
+          </div>
+
+          <div id="servicos-admin">
+            {% for item in services %}
+              <div class="border rounded p-3 mb-3 servico-admin" data-existing="true">
+                <input type="hidden" name="service_id[]" value="{{ item.id_servico }}">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <strong class="servico-titulo">Serviço {{ loop.index }}</strong>
+                  <div class="d-flex align-items-center gap-2">
+                    <span class="badge text-bg-{{ 'warning' if (item.status or '')|lower == 'pendente' else 'secondary' }}">
+                      {{ item.status or 'Sem status' }}
+                    </span>
+                    <button type="button" class="btn btn-sm btn-outline-danger btn-remover-servico d-none">
+                      Remover
+                    </button>
+                  </div>
+                </div>
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <label class="form-label">Tipo de serviço</label>
+                    <input type="text" name="tipo_servico[]" class="form-control" value="{{ item.tipo_servico or '' }}" required>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label">Valor do serviço</label>
+                    <input type="text" name="valor[]" class="form-control brl-mask" inputmode="numeric" autocomplete="off" value="{% if item.valor %}{{ item.valor | brl | replace('R$ ', '') }}{% endif %}" placeholder="0,00" required>
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label">Descrição do serviço</label>
+                    <textarea name="descricao_servico[]" class="form-control" rows="2" required>{{ item.descricao_servico or '' }}</textarea>
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label">Observações</label>
+                    <textarea name="observacoes[]" class="form-control" rows="2">{{ item.observacoes or '' }}</textarea>
+                  </div>
+                </div>
               </div>
-              <div class="row g-3">
-                <div class="col-md-6">
-                  <label class="form-label">Tipo de serviço</label>
-                  <input type="text" name="tipo_servico[]" class="form-control" value="{{ item.tipo_servico or '' }}" required>
+            {% endfor %}
+          </div>
+
+          <div class="d-flex justify-content-between align-items-center mt-4 mb-2">
+            <h6 class="fw-bold mb-0">Produtos e materiais</h6>
+            <button type="button" class="btn btn-sm btn-outline-primary" id="btn-adicionar-produto-admin">
+              <i class="bi bi-plus-circle me-1"></i>Adicionar produto
+            </button>
+          </div>
+
+          <div id="produtos-admin">
+            {% if product_items %}
+              {% for product in product_items %}
+                <div class="border rounded p-3 mb-3 produto-admin">
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <strong class="produto-titulo">Produto/material {{ loop.index }}</strong>
+                    <button type="button" class="btn btn-sm btn-outline-danger btn-remover-produto">Remover</button>
+                  </div>
+                  <div class="row g-3">
+                    <div class="col-md-7">
+                      <label class="form-label">Descrição do produto/material</label>
+                      <input type="text" name="produto_descricao[]" class="form-control" value="{{ product.descricao or '' }}" placeholder="Ex: Óleo 5W30, pastilha de freio">
+                    </div>
+                    <div class="col-md-5">
+                      <label class="form-label">Valor do produto/material</label>
+                      <input type="text" name="produto_valor[]" class="form-control brl-mask" inputmode="numeric" autocomplete="off" value="{{ product.valor | brl | replace('R$ ', '') }}" placeholder="0,00">
+                    </div>
+                  </div>
                 </div>
-                <div class="col-md-6">
-                  <label class="form-label">Valor do serviço</label>
-                  <input type="text" name="valor[]" class="form-control brl-mask" inputmode="numeric" autocomplete="off" value="{% if item.valor %}{{ item.valor | brl | replace('R$ ', '') }}{% endif %}" placeholder="0,00" required>
+              {% endfor %}
+            {% else %}
+              <div class="border rounded p-3 mb-3 produto-admin">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <strong class="produto-titulo">Produto/material 1</strong>
+                  <button type="button" class="btn btn-sm btn-outline-danger btn-remover-produto d-none">Remover</button>
                 </div>
-                <div class="col-12">
-                  <label class="form-label">Descrição do serviço</label>
-                  <textarea name="descricao_servico[]" class="form-control" rows="2" required>{{ item.descricao_servico or '' }}</textarea>
-                </div>
-                <div class="col-12">
-                  <label class="form-label">Observações</label>
-                  <textarea name="observacoes[]" class="form-control" rows="2">{{ item.observacoes or '' }}</textarea>
+                <div class="row g-3">
+                  <div class="col-md-7">
+                    <label class="form-label">Descrição do produto/material</label>
+                    <input type="text" name="produto_descricao[]" class="form-control" placeholder="Ex: Óleo 5W30, pastilha de freio">
+                  </div>
+                  <div class="col-md-5">
+                    <label class="form-label">Valor do produto/material</label>
+                    <input type="text" name="produto_valor[]" class="form-control brl-mask" inputmode="numeric" autocomplete="off" placeholder="0,00">
+                  </div>
                 </div>
               </div>
-            </div>
-          {% endfor %}
+            {% endif %}
+          </div>
 
           <div class="mb-3 row g-3">
             <div class="col-md-6">
@@ -51,21 +113,12 @@
                 {% endfor %}
               </select>
             </div>
-          </div>
-          <div class="mb-3 row g-3">
             <div class="col-md-6">
-              <label class="form-label">Custo da peça / material (opcional)</label>
-              <input type="text" name="produto_valor" class="form-control brl-mask" inputmode="numeric" autocomplete="off" placeholder="0,00">
-            </div>
-            <div class="col-md-6">
-              <label class="form-label">Descrição da peça / material</label>
-              <input type="text" name="produto_descricao" class="form-control" placeholder="Ex: Óleo 5W30, pastilha de freio">
+              <label class="form-label">Data de conclusão</label>
+              <input type="date" name="data_conclusao" class="form-control" value="{{ today_str }}" required>
             </div>
           </div>
-          <div class="mb-3">
-            <label class="form-label">Data de conclusão</label>
-            <input type="date" name="data_conclusao" class="form-control" value="{{ today_str }}" required>
-          </div>
+
           <button type="submit" class="btn btn-success">Aprovar e lançar no financeiro</button>
           <a href="{{ url_for('historico_servicos') }}" class="btn btn-outline-secondary ms-2">Cancelar</a>
         </form>
@@ -73,4 +126,124 @@
     </div>
   </div>
 </div>
+
+<template id="servico-template">
+  <div class="border rounded p-3 mb-3 servico-admin" data-existing="false">
+    <input type="hidden" name="service_id[]" value="">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <strong class="servico-titulo">Serviço</strong>
+      <button type="button" class="btn btn-sm btn-outline-danger btn-remover-servico">Remover</button>
+    </div>
+    <div class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label">Tipo de serviço</label>
+        <input type="text" name="tipo_servico[]" class="form-control" required>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Valor do serviço</label>
+        <input type="text" name="valor[]" class="form-control brl-mask" inputmode="numeric" autocomplete="off" placeholder="0,00" required>
+      </div>
+      <div class="col-12">
+        <label class="form-label">Descrição do serviço</label>
+        <textarea name="descricao_servico[]" class="form-control" rows="2" required></textarea>
+      </div>
+      <div class="col-12">
+        <label class="form-label">Observações</label>
+        <textarea name="observacoes[]" class="form-control" rows="2"></textarea>
+      </div>
+    </div>
+  </div>
+</template>
+
+<template id="produto-template">
+  <div class="border rounded p-3 mb-3 produto-admin">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <strong class="produto-titulo">Produto/material</strong>
+      <button type="button" class="btn btn-sm btn-outline-danger btn-remover-produto">Remover</button>
+    </div>
+    <div class="row g-3">
+      <div class="col-md-7">
+        <label class="form-label">Descrição do produto/material</label>
+        <input type="text" name="produto_descricao[]" class="form-control" placeholder="Ex: Óleo 5W30, pastilha de freio">
+      </div>
+      <div class="col-md-5">
+        <label class="form-label">Valor do produto/material</label>
+        <input type="text" name="produto_valor[]" class="form-control brl-mask" inputmode="numeric" autocomplete="off" placeholder="0,00">
+      </div>
+    </div>
+  </div>
+</template>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    const servicosLista = document.getElementById('servicos-admin');
+    const produtosLista = document.getElementById('produtos-admin');
+    const servicoTemplate = document.getElementById('servico-template');
+    const produtoTemplate = document.getElementById('produto-template');
+    const btnAdicionarServico = document.getElementById('btn-adicionar-servico-admin');
+    const btnAdicionarProduto = document.getElementById('btn-adicionar-produto-admin');
+
+    function atualizarServicos() {
+      const itens = Array.from(servicosLista.querySelectorAll('.servico-admin'));
+      itens.forEach((item, index) => {
+        item.querySelector('.servico-titulo').textContent = 'Serviço ' + (index + 1);
+        const remover = item.querySelector('.btn-remover-servico');
+        if (remover) {
+          remover.classList.toggle('d-none', item.dataset.existing === 'true');
+        }
+      });
+    }
+
+    function atualizarProdutos() {
+      const itens = Array.from(produtosLista.querySelectorAll('.produto-admin'));
+      itens.forEach((item, index) => {
+        item.querySelector('.produto-titulo').textContent = 'Produto/material ' + (index + 1);
+        const remover = item.querySelector('.btn-remover-produto');
+        if (remover) {
+          remover.classList.toggle('d-none', itens.length === 1);
+        }
+      });
+    }
+
+    btnAdicionarServico.addEventListener('click', function () {
+      const novo = servicoTemplate.content.firstElementChild.cloneNode(true);
+      servicosLista.appendChild(novo);
+      atualizarServicos();
+      novo.querySelector('input[name="tipo_servico[]"]').focus();
+    });
+
+    btnAdicionarProduto.addEventListener('click', function () {
+      const novo = produtoTemplate.content.firstElementChild.cloneNode(true);
+      produtosLista.appendChild(novo);
+      atualizarProdutos();
+      novo.querySelector('input[name="produto_descricao[]"]').focus();
+    });
+
+    servicosLista.addEventListener('click', function (event) {
+      const botao = event.target.closest('.btn-remover-servico');
+      if (!botao) return;
+      const item = botao.closest('.servico-admin');
+      if (item && item.dataset.existing !== 'true') {
+        item.remove();
+        atualizarServicos();
+      }
+    });
+
+    produtosLista.addEventListener('click', function (event) {
+      const botao = event.target.closest('.btn-remover-produto');
+      if (!botao) return;
+      const itens = produtosLista.querySelectorAll('.produto-admin');
+      const item = botao.closest('.produto-admin');
+      if (itens.length > 1 && item) {
+        item.remove();
+        atualizarProdutos();
+      }
+    });
+
+    atualizarServicos();
+    atualizarProdutos();
+  })();
+</script>
 {% endblock %}

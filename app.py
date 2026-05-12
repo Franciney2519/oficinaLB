@@ -807,6 +807,70 @@ def _build_service_items_from_services(services: list) -> list:
     return items
 
 
+def _build_product_items_from_service(service: dict) -> list:
+    descricao = str((service or {}).get("produto_descricao") or "").strip()
+    valor_total = float((service or {}).get("produto_valor") or 0)
+    if not descricao or valor_total <= 0:
+        return []
+
+    lines = [line.strip() for line in descricao.splitlines() if line.strip()]
+    if len(lines) > 1:
+        parsed_items = []
+        parsed_total = 0.0
+        for line in lines:
+            match = re.match(r"^(?P<desc>.+?)\s+\((?:R\$\s*)?(?P<value>[\d.,]+)\)$", line)
+            if not match:
+                parsed_items = []
+                break
+            valor = round(_parse_brl_number(match.group("value")), 2)
+            if valor <= 0:
+                parsed_items = []
+                break
+            parsed_total = round(parsed_total + valor, 2)
+            parsed_items.append({"descricao": match.group("desc").strip(), "valor": valor})
+        if parsed_items and abs(parsed_total - valor_total) < 0.01:
+            return parsed_items
+
+    return [{"descricao": descricao, "valor": round(valor_total, 2)}]
+
+
+def _build_product_items_from_form(form) -> tuple[list, str]:
+    descricoes = form.getlist("produto_descricao[]")
+    valores = form.getlist("produto_valor[]")
+    if not descricoes and not valores:
+        descricoes = [form.get("produto_descricao", "")]
+        valores = [form.get("produto_valor", "")]
+
+    product_items = []
+    max_items = max(len(descricoes), len(valores), 0)
+    for index in range(max_items):
+        descricao = (descricoes[index] if index < len(descricoes) else "").strip()
+        valor_text = (valores[index] if index < len(valores) else "").strip()
+        if not descricao and not valor_text:
+            continue
+        if not descricao:
+            return [], f"Informe a descrição do produto/material {index + 1}."
+        valor = round(_parse_brl_number(valor_text), 2)
+        if valor <= 0:
+            return [], f"Informe um valor válido para o produto/material {index + 1}."
+        product_items.append({"descricao": descricao, "valor": valor})
+
+    return product_items, ""
+
+
+def _summarize_product_items(product_items: list) -> tuple[str, float]:
+    if not product_items:
+        return "", 0.0
+    total = round(sum(float(item.get("valor") or 0) for item in product_items), 2)
+    if len(product_items) == 1:
+        return str(product_items[0].get("descricao") or "").strip(), total
+    descricao = "\n".join(
+        f"{str(item.get('descricao') or '').strip()} ({format_brl(item.get('valor') or 0)})"
+        for item in product_items
+    )
+    return descricao, total
+
+
 def _normalize_status(value: str) -> str:
     """Remove acentos e padroniza para facilitar comparações de status."""
     if not value:
@@ -1995,8 +2059,6 @@ def finalizar_servico(service_id: int):
         tipos = request.form.getlist("tipo_servico[]") or [request.form.get("tipo_servico", "")]
         valores = request.form.getlist("valor[]") or [request.form.get("valor", "")]
         observacoes_list = request.form.getlist("observacoes[]") or [request.form.get("observacoes", "")]
-        produto_descricao = request.form.get("produto_descricao", "").strip()
-        produto_valor_raw = request.form.get("produto_valor", "").strip()
         forma_pagamento = request.form.get("forma_pagamento", "PIX")
         data_conclusao = request.form.get("data_conclusao", datetime.today().strftime("%Y-%m-%d"))
 
@@ -2004,55 +2066,62 @@ def finalizar_servico(service_id: int):
             flash("Escolha uma forma de pagamento válida.", "warning")
             return redirect(url_for("finalizar_servico", service_id=service_id))
 
-        services_to_update = []
-        for index, (descricao_raw, tipo_raw, valor_raw) in enumerate(zip(descricoes, tipos, valores), start=1):
-            descricao = (descricao_raw or "").strip()
-            tipo = (tipo_raw or "").strip()
-            valor_text = (valor_raw or "").strip()
+        services_to_save = []
+        max_services = max(len(posted_ids), len(descricoes), len(tipos), len(valores), len(observacoes_list), 0)
+        for index in range(max_services):
+            descricao = (descricoes[index] if index < len(descricoes) else "").strip()
+            tipo = (tipos[index] if index < len(tipos) else "").strip()
+            valor_text = (valores[index] if index < len(valores) else "").strip()
             observacoes = (
-                observacoes_list[index - 1].strip()
-                if index - 1 < len(observacoes_list) and observacoes_list[index - 1]
+                observacoes_list[index].strip()
+                if index < len(observacoes_list) and observacoes_list[index]
                 else ""
             )
-            service_id_raw = posted_ids[index - 1] if index - 1 < len(posted_ids) else ""
-            sid = _coerce_int(service_id_raw) or (service_ids[index - 1] if index - 1 < len(service_ids) else None)
-            if not sid:
+            service_id_raw = posted_ids[index] if index < len(posted_ids) else ""
+            sid = _coerce_int(service_id_raw) or (service_ids[index] if index < len(service_ids) else None)
+            if not any([sid, descricao, tipo, valor_text, observacoes]):
                 continue
             if not descricao:
-                flash(f"Informe a descrição do serviço {index}.", "warning")
+                flash(f"Informe a descrição do serviço {index + 1}.", "warning")
                 return redirect(url_for("finalizar_servico", service_id=service_id))
             if not tipo:
-                flash(f"Informe o tipo do serviço {index}.", "warning")
+                flash(f"Informe o tipo do serviço {index + 1}.", "warning")
                 return redirect(url_for("finalizar_servico", service_id=service_id))
             try:
                 valor = _parse_brl_number(valor_text)
             except ValueError:
-                flash(f"Informe um valor válido para o serviço {index}.", "warning")
+                flash(f"Informe um valor válido para o serviço {index + 1}.", "warning")
                 return redirect(url_for("finalizar_servico", service_id=service_id))
-            services_to_update.append({
+            services_to_save.append({
                 "id_servico": sid,
                 "descricao_servico": descricao,
                 "tipo_servico": tipo,
                 "valor": round(valor, 2),
                 "observacoes": observacoes,
             })
-        if not services_to_update:
+        if not services_to_save:
             flash("Inclua pelo menos um serviço para finalizar.", "warning")
             return redirect(url_for("finalizar_servico", service_id=service_id))
-        try:
-            produto_valor = _parse_brl_number(produto_valor_raw)
-        except ValueError:
-            flash("Informe um valor válido para o custo da peça.", "warning")
-            return redirect(url_for("finalizar_servico", service_id=service_id))
 
-        valor_servicos = round(sum(item["valor"] for item in services_to_update), 2)
+        product_items, product_error = _build_product_items_from_form(request.form)
+        if product_error:
+            flash(product_error, "warning")
+            return redirect(url_for("finalizar_servico", service_id=service_id))
+        produto_descricao, produto_valor = _summarize_product_items(product_items)
+        produto_descricao_financeiro = produto_descricao.replace("\n", "; ")
+
+        valor_servicos = round(sum(item["valor"] for item in services_to_save), 2)
         valor_final = round(valor_servicos + produto_valor, 2)
         data_obj = _parse_date(data_conclusao)
         if not data_obj:
             flash("Informe uma data de conclusão válida.", "warning")
             return redirect(url_for("finalizar_servico", service_id=service_id))
 
-        for index, item in enumerate(services_to_update):
+        ordem_servico = str(primary_service.get("ordem_servico") or "").strip() or _generate_service_order_number()
+        service_ref = ordem_servico
+        responsavel_servico = primary_service.get("responsavel") or session.get("user_name") or "admin"
+        saved_service_ids = []
+        for index, item in enumerate(services_to_save):
             payload = {
                 "descricao_servico": item["descricao_servico"],
                 "tipo_servico": item["tipo_servico"],
@@ -2060,6 +2129,7 @@ def finalizar_servico(service_id: int):
                 "observacoes": item["observacoes"],
                 "status": "Concluído",
                 "data_execucao": data_obj.strftime("%Y-%m-%d"),
+                "ordem_servico": ordem_servico,
             }
             if index == 0:
                 payload["produto_descricao"] = produto_descricao
@@ -2067,15 +2137,25 @@ def finalizar_servico(service_id: int):
             else:
                 payload["produto_descricao"] = ""
                 payload["produto_valor"] = None
-            dal.update_service(item["id_servico"], payload)
+            if item["id_servico"]:
+                dal.update_service(item["id_servico"], payload)
+                saved_service_ids.append(item["id_servico"])
+            else:
+                payload.update({
+                    "id_orcamento": _coerce_int(primary_service.get("id_orcamento")),
+                    "id_cliente": _coerce_int(primary_service.get("id_cliente")),
+                    "responsavel": responsavel_servico,
+                })
+                saved_service_ids.append(dal.add_service(payload))
 
         existing_financial_df = dal.get_all_financial_entries()
+        service_ids_for_financial = saved_service_ids or service_ids
         has_entry = False
         if not existing_financial_df.empty:
             related_service = pd.to_numeric(
                 existing_financial_df.get("relacionado_servico_id"), errors="coerce"
             )
-            has_entry = (related_service.isin(service_ids) &
+            has_entry = (related_service.isin(service_ids_for_financial) &
                          (existing_financial_df["tipo_lancamento"].fillna("").astype(str).str.lower() == "entrada")).any()
 
         if not has_entry:
@@ -2097,16 +2177,16 @@ def finalizar_servico(service_id: int):
                 )
                 desc_col = existing_financial_df["descricao"].fillna("").astype(str)
                 has_exit_entry = (
-                    related_service.isin(service_ids)
+                    related_service.isin(service_ids_for_financial)
                     & (existing_financial_df["tipo_lancamento"].fillna("").astype(str).str.lower() == "saída")
-                    & desc_col.str.contains(re.escape(produto_descricao), case=False, na=False)
+                    & desc_col.str.contains(re.escape(produto_descricao_financeiro), case=False, na=False)
                 ).any()
             if not has_exit_entry:
                 dal.add_financial_entry({
                     "data": data_obj.strftime("%Y-%m-%d"),
                     "tipo_lancamento": "Saída",
                     "categoria": "Materiais e peças - Componentes automotivos",
-                    "descricao": f"{produto_descricao} - OS {service_ref}",
+                    "descricao": f"{produto_descricao_financeiro} - OS {service_ref}",
                     "valor": round(produto_valor, 2),
                     "relacionado_orcamento_id": None,
                     "relacionado_servico_id": service_id,
@@ -2127,14 +2207,14 @@ def finalizar_servico(service_id: int):
                 "valor_unitario": item["valor"],
                 "subtotal": item["valor"],
             }
-            for item in services_to_update
+            for item in services_to_save
         ]
-        if produto_descricao and produto_valor > 0:
+        for product in product_items:
             items.append({
-                "descricao": produto_descricao,
+                "descricao": product["descricao"],
                 "quantidade": 1,
-                "valor_unitario": round(produto_valor, 2),
-                "subtotal": round(produto_valor, 2),
+                "valor_unitario": product["valor"],
+                "subtotal": product["valor"],
             })
 
         return render_template(
@@ -2156,6 +2236,7 @@ def finalizar_servico(service_id: int):
         "finalizar_servico.html",
         service=primary_service,
         services=services_group,
+        product_items=_build_product_items_from_service(primary_service),
         service_ref=service_ref,
         client=cliente,
         payment_options=PAYMENT_OPTIONS,
@@ -2352,6 +2433,15 @@ def historico_servicos():
             "responsavel": row.get("responsavel") or "-",
             "observacoes": row.get("observacoes") or "-",
         })
+        for product in _build_product_items_from_service(row):
+            entry["total_value"] = round(entry["total_value"] + float(product.get("valor") or 0), 2)
+            entry["itens"].append({
+                "tipo": "Produto/material",
+                "descricao": product.get("descricao") or "-",
+                "valor": float(product.get("valor") or 0),
+                "responsavel": row.get("responsavel") or "-",
+                "observacoes": "Incluído na conferência administrativa",
+            })
 
     services = [budgets_seen[k] for k in budgets_order]
     direct_services = [direct_seen[k] for k in direct_order]
@@ -3264,16 +3354,14 @@ def gerar_recibo_servico(service_id: int):
 
     items = _build_service_items_from_services(services_group)
     valor_final = sum(float(item.get("subtotal") or 0) for item in items)
-    produto_descricao = primary_service.get("produto_descricao")
-    produto_valor = float(primary_service.get("produto_valor") or 0)
-    if produto_descricao and produto_valor > 0:
+    for product in _build_product_items_from_service(primary_service):
         items.append({
-            "descricao": produto_descricao,
+            "descricao": product["descricao"],
             "quantidade": 1,
-            "valor_unitario": produto_valor,
-            "subtotal": produto_valor,
+            "valor_unitario": product["valor"],
+            "subtotal": product["valor"],
         })
-        valor_final += produto_valor
+        valor_final += product["valor"]
 
     data_conclusao = _parse_date(primary_service.get("data_execucao")) or datetime.today()
 
