@@ -38,7 +38,65 @@
   </div>
 </div>
 
+<div class="card mb-4">
+  <div class="card-header bg-light fw-semibold">
+    Serviços diretos realizados <small class="text-muted">(sem orçamento)</small>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-striped align-middle">
+        <thead>
+          <tr>
+            <th>Cliente</th>
+            <th>OS</th>
+            <th>Data do Serviço</th>
+            <th>Total</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in direct_services %}
+            <tr>
+              <td>{{ s.client_name }}</td>
+              <td><code>{{ s.order_number or '-' }}</code></td>
+              <td>{{ s.service_date }}</td>
+              <td>{{ s.total_value | brl }}</td>
+              <td>
+                {% set status_lower = (s.status or '') | lower %}
+                <span class="badge bg-{{ 'success' if 'conclu' in status_lower else ('warning text-dark' if 'pendente' in status_lower else 'secondary') }}">
+                  {{ s.status }}
+                </span>
+              </td>
+              <td>
+                <div class="d-flex gap-2">
+                  <button class="btn btn-sm btn-outline-primary btn-detalhes"
+                    data-info='{{ s | tojson }}'>
+                    Detalhes ({{ s.itens | length }})
+                  </button>
+                  {% if session.get('role') == 'admin' and s.service_id and s.status|lower == 'pendente' %}
+                    <a href="{{ url_for('finalizar_servico', service_id=s.service_id) }}" class="btn btn-sm btn-success">
+                      Conferir/editar
+                    </a>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="6" class="text-center">Nenhum serviço direto encontrado para o filtro selecionado.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <div class="card">
+  <div class="card-header bg-light fw-semibold">
+    Serviços originados de orçamento
+  </div>
   <div class="card-body">
     <div class="table-responsive">
       <table class="table table-striped align-middle">
@@ -46,7 +104,8 @@
           <tr>
             <th>Cliente</th>
             <th>Veículo</th>
-            <th>OS/Orçamento</th>
+            <th>Nº Orçamento</th>
+            <th>OS</th>
             <th>Data do Serviço</th>
             <th>KM</th>
             <th>Total</th>
@@ -59,19 +118,14 @@
             <tr>
               <td>{{ s.client_name }}</td>
               <td>{{ s.veiculo_info }}</td>
-              <td>
-                {% if s.order_number %}
-                  <code>{{ s.order_number }}</code>
-                {% else %}
-                  {{ s.budget_id or '-' }}
-                {% endif %}
-              </td>
+              <td>{{ s.budget_id or '-' }}</td>
+              <td><code>{{ s.order_number or '-' }}</code></td>
               <td>{{ s.service_date }}</td>
               <td>{{ s.carro_km }}</td>
               <td>{{ s.total_value | brl }}</td>
               <td>
                 {% set status_lower = (s.status or '') | lower %}
-                <span class="badge bg-{{ 'success' if 'conclu' in status_lower else ('warning text-dark' if 'aprovado' in status_lower else 'secondary') }}">
+                <span class="badge bg-{{ 'success' if 'conclu' in status_lower else ('warning text-dark' if 'aprovado' in status_lower or 'pendente' in status_lower else 'secondary') }}">
                   {{ s.status }}
                 </span>
               </td>
@@ -81,17 +135,12 @@
                     data-info='{{ s | tojson }}'>
                     Detalhes ({{ s.itens | length }})
                   </button>
-                  {% if not s.budget_id and s.service_id and s.status|lower == 'pendente' %}
-                    <a href="{{ url_for('finalizar_servico', service_id=s.service_id) }}" class="btn btn-sm btn-success">
-                      Finalizar
-                    </a>
-                  {% endif %}
                 </div>
               </td>
             </tr>
           {% else %}
             <tr>
-              <td colspan="8" class="text-center">Nenhum serviço encontrado para o filtro selecionado.</td>
+              <td colspan="9" class="text-center">Nenhum serviço encontrado para o filtro selecionado.</td>
             </tr>
           {% endfor %}
         </tbody>

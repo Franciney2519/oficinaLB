@@ -3,19 +3,28 @@
 {% block content %}
 <div class="row">
   <div class="col-lg-8">
+    {% if is_pending_admin %}
+      <div class="alert alert-warning">
+        Aguardando validação administrativa. O admin pode editar itens, ajustar valores, adicionar serviços e aprovar antes do envio ao cliente.
+      </div>
+    {% endif %}
+
     <div class="card mb-3">
       <div class="card-body">
         <h5 class="card-title">Orçamento #{{ budget.id_orcamento }}</h5>
         <p><strong>Status:</strong> {{ budget.status }}</p>
+        {% if budget_order_number %}
+          <p><strong>Ordem de serviço:</strong> <code>{{ budget_order_number }}</code></p>
+        {% endif %}
         <p><strong>Cliente:</strong> {{ client.nome }} - {{ client.telefone_whatsapp }}</p>
         <p><strong>Veículo:</strong> {{ veiculo.marca }} {{ veiculo.modelo }} {{ veiculo.ano }}{% if veiculo.placa %} ({{ veiculo.placa }}){% endif %}</p>
         <p><strong>Cor / KM informados:</strong> {{ budget.carro_cor or veiculo.cor or 'N/D' }} / {{ budget.carro_km or 'N/D' }}</p>
         <p><strong>Responsável planejado:</strong> {{ budget.responsavel_planejado_nome or 'N/D' }}</p>
         <p><strong>Forma de pagamento:</strong> {{ forma_pagamento }}{% if taxa > 0 %} (taxa {{ taxa | brl }}){% endif %}</p>
-        <p><strong>Valor dos itens:</strong> {{ base_total | brl }}</p>
+        <p><strong>Valor dos itens/serviços:</strong> {{ base_total | brl }}</p>
         <p><strong>Valor final apresentado ao cliente:</strong> {{ final_total | brl }}</p>
 
-        <h6>Itens</h6>
+        <h6>Itens e serviços</h6>
         <ul class="list-group mb-3">
           {% for item in items %}
             <li class="list-group-item">
@@ -36,23 +45,38 @@
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-body">
-        <h6>Texto para WhatsApp</h6>
-        <textarea class="form-control" rows="8">{{ budget.texto_whatsapp }}</textarea>
-        <a href="https://wa.me/?text={{ budget.texto_whatsapp|urlencode }}" target="_blank" class="btn btn-success mt-3">Enviar via WhatsApp</a>
+    {% if can_send_to_client %}
+      <div class="card">
+        <div class="card-body">
+          <h6>Texto para WhatsApp</h6>
+          <textarea class="form-control" rows="8">{{ budget.texto_whatsapp }}</textarea>
+          <a href="https://wa.me/?text={{ budget.texto_whatsapp|urlencode }}" target="_blank" class="btn btn-success mt-3">Enviar via WhatsApp</a>
+        </div>
       </div>
-    </div>
+    {% else %}
+      <div class="card">
+        <div class="card-body">
+          <h6>Texto para WhatsApp</h6>
+          <p class="text-muted mb-0">Disponível após a aprovação administrativa do orçamento.</p>
+        </div>
+      </div>
+    {% endif %}
   </div>
 
   <div class="col-lg-4">
     <div class="card">
       <div class="card-body">
         <h6>Ações</h6>
+        {% if can_admin_approve %}
+          <form action="{{ url_for('aprovar_orcamento_admin', budget_id=budget.id_orcamento) }}" method="post" class="mb-2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-primary w-100" onclick="return confirm('Aprovar este orçamento para envio ao cliente?')">Aprovar orçamento</button>
+          </form>
+        {% endif %}
         {% if can_efetivar %}
           <a href="{{ url_for('efetivar_orcamento', budget_id=budget.id_orcamento) }}" class="btn btn-success w-100 mb-2">Efetivar</a>
         {% else %}
-          <button class="btn btn-success w-100 mb-2" disabled title="Orçamento já concluído.">Efetivar</button>
+          <button class="btn btn-success w-100 mb-2" disabled title="{% if is_pending_admin %}Aguardando validação administrativa.{% else %}Orçamento já concluído.{% endif %}">Efetivar</button>
         {% endif %}
         {% if can_edit %}
           <a href="{{ url_for('editar_orcamento', budget_id=budget.id_orcamento) }}" class="btn btn-outline-secondary w-100 mb-2">Editar</a>
@@ -64,7 +88,11 @@
         {% else %}
           <button class="btn btn-outline-primary w-100 mb-2" disabled title="Disponível após conclusão.">Baixar comprovante</button>
         {% endif %}
-        <a href="{{ url_for('gerar_pdf_orcamento', budget_id=budget.id_orcamento) }}" class="btn btn-outline-primary w-100 mb-2">Baixar PDF</a>
+        {% if can_download_pdf %}
+          <a href="{{ url_for('gerar_pdf_orcamento', budget_id=budget.id_orcamento) }}" class="btn btn-outline-primary w-100 mb-2">Baixar PDF</a>
+        {% else %}
+          <button class="btn btn-outline-primary w-100 mb-2" disabled title="Disponível após validação administrativa.">Baixar PDF</button>
+        {% endif %}
         {% if can_reprovar %}
           <form action="{{ url_for('reprovar_orcamento', budget_id=budget.id_orcamento) }}" method="post">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

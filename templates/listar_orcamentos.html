@@ -53,12 +53,18 @@
               {% if orcamento.can_editar %}
                 <a href="{{ url_for('editar_orcamento', budget_id=orcamento.id_orcamento) }}" class="btn btn-sm btn-outline-primary">Editar</a>
               {% else %}
-                <button class="btn btn-sm btn-outline-primary" disabled title="Orçamento concluído.">Editar</button>
+                <button class="btn btn-sm btn-outline-primary" disabled title="Restrito ao admin ou orçamento concluído.">Editar</button>
+              {% endif %}
+              {% if orcamento.can_admin_approve %}
+                <form action="{{ url_for('aprovar_orcamento_admin', budget_id=orcamento.id_orcamento) }}" method="post">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit" class="btn btn-sm btn-primary" onclick="return confirm('Aprovar este orçamento para envio ao cliente?')">Aprovar</button>
+                </form>
               {% endif %}
               {% if orcamento.can_efetivar %}
                 <a href="{{ url_for('efetivar_orcamento', budget_id=orcamento.id_orcamento) }}" class="btn btn-sm btn-success">Efetivar</a>
               {% else %}
-                <button class="btn btn-sm btn-success" disabled title="Orçamento já concluído.">Efetivar</button>
+                <button class="btn btn-sm btn-success" disabled title="{% if orcamento.is_pending_admin %}Aguardando validação administrativa.{% else %}Restrito ao admin ou orçamento já concluído.{% endif %}">Efetivar</button>
               {% endif %}
               {% if orcamento.can_reprovar %}
                 <form action="{{ url_for('reprovar_orcamento', budget_id=orcamento.id_orcamento) }}" method="post">

@@ -9,7 +9,7 @@
 </div>
 
 <div class="row g-3 mb-4">
-  <div class="col-md-3 col-6">
+  <div class="col-md-6 col-12">
     <div class="card h-100">
       <div class="card-body">
         <div class="text-muted small text-uppercase">Total</div>
@@ -18,7 +18,7 @@
       </div>
     </div>
   </div>
-  <div class="col-md-3 col-6">
+  <div class="col-md-6 col-12">
     <div class="card h-100">
       <div class="card-body">
         <div class="text-muted small text-uppercase">{{ mes_atual }}/{{ ano_atual }}</div>
@@ -27,29 +27,11 @@
       </div>
     </div>
   </div>
-  <div class="col-md-3 col-6">
-    <div class="card h-100">
-      <div class="card-body">
-        <div class="text-muted small text-uppercase">Valor total</div>
-        <div class="h4 fw-bold mt-1">{{ valor_total | brl }}</div>
-        <div class="text-muted small">em serviços executados</div>
-      </div>
-    </div>
-  </div>
-  <div class="col-md-3 col-6">
-    <div class="card h-100">
-      <div class="card-body">
-        <div class="text-muted small text-uppercase">Valor no mês</div>
-        <div class="h4 fw-bold mt-1 text-primary">{{ valor_mes | brl }}</div>
-        <div class="text-muted small">{{ mes_atual }}/{{ ano_atual }}</div>
-      </div>
-    </div>
-  </div>
 </div>
 
 <div class="card mb-4">
   <div class="card-header bg-light fw-semibold">
-    <i class="bi bi-plus-circle me-1"></i>Registrar serviço direto
+    <i class="bi bi-plus-circle me-1"></i>Registrar serviço realizado
   </div>
   <div class="card-body">
     <form action="{{ url_for('registrar_servico') }}" method="post">
@@ -96,7 +78,7 @@
           </button>
         </div>
         <div class="col-12 text-end">
-          <button type="submit" class="btn btn-primary">Enviar para revisão administrativa</button>
+          <button type="submit" class="btn btn-primary">Enviar para conferência administrativa</button>
         </div>
       </div>
     </form>

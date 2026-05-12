@@ -37,6 +37,12 @@
             <p class="mb-1 text-muted small">Valor recebido</p>
             <p class="fw-bold fs-5 text-success mb-0">{{ valor_final | brl }}</p>
           </div>
+          {% if service_order is defined and service_order %}
+            <div class="col-6">
+              <p class="mb-1 text-muted small">Ordem de serviço</p>
+              <p class="fw-semibold mb-0"><code>{{ service_order }}</code></p>
+            </div>
+          {% endif %}
         </div>
 
         <h6 class="fw-semibold mb-2">Itens faturados</h6>

@@ -560,7 +560,14 @@ PAYMENT_OPTIONS = [
 COMMERCIAL_TERMS_TEXT = (
     "Forma de pagamento: Transferência bancária, boleto ou cartão de crédito."
 )
+BUDGET_STATUS_PENDING_ADMIN = "Pendente validação admin"
+BUDGET_STATUS_ADMIN_APPROVED = "Aprovado pelo admin"
 FINALIZED_BUDGET_STATUSES = {"concluido", "finalizado"}
+ADMIN_APPROVED_BUDGET_STATUSES = {
+    "aprovado pelo admin",
+    "aprovado",
+    *FINALIZED_BUDGET_STATUSES,
+}
 FINANCIAL_ENTRY_CATEGORY_BUDGET = "Serviço Oficina"
 FINANCE_EXPENSE_TYPES = {
     "Despesas Fixas": [
@@ -697,6 +704,86 @@ def _get_service_group(service: dict) -> list:
     return services or ([service] if service else [])
 
 
+def _get_budget_service_records(budget_id: int, services_df: Optional[pd.DataFrame] = None) -> list:
+    if services_df is None:
+        services_df = dal.get_all_services()
+    if services_df.empty or "id_orcamento" not in services_df.columns:
+        return []
+    related_budget = pd.to_numeric(services_df["id_orcamento"], errors="coerce")
+    budget_services = services_df[related_budget == budget_id].copy()
+    if budget_services.empty:
+        return []
+    if "id_servico" in budget_services.columns:
+        budget_services = budget_services.sort_values("id_servico")
+    return budget_services.to_dict(orient="records")
+
+
+def _service_order_from_records(services: list) -> str:
+    for service in services:
+        ordem = str((service or {}).get("ordem_servico") or "").strip()
+        if ordem:
+            return ordem
+    return ""
+
+
+def _sync_budget_services_from_items(
+    budget_id: int,
+    budget: dict,
+    items: list,
+    *,
+    data_execucao: datetime,
+    status: str,
+    responsavel: str,
+) -> dict:
+    existing_services = _get_budget_service_records(budget_id)
+    ordem_servico = _service_order_from_records(existing_services) or _generate_service_order_number()
+    data_execucao_str = data_execucao.strftime("%Y-%m-%d")
+    created_count = 0
+    updated_count = 0
+
+    for index, item in enumerate(items):
+        payload = {
+            "id_orcamento": budget_id,
+            "id_cliente": budget.get("id_cliente"),
+            "data_execucao": data_execucao_str,
+            "descricao_servico": item.get("descricao"),
+            "tipo_servico": item.get("tipo"),
+            "valor": item.get("subtotal"),
+            "observacoes": f"Gerado pelo orçamento #{budget_id}",
+            "responsavel": responsavel,
+            "status": status,
+            "ordem_servico": ordem_servico,
+        }
+        if index < len(existing_services):
+            service_id = _coerce_int(existing_services[index].get("id_servico"))
+            if service_id:
+                dal.update_service(service_id, payload)
+                updated_count += 1
+                continue
+        dal.add_service(payload)
+        created_count += 1
+
+    for service in existing_services[len(items):]:
+        service_id = _coerce_int(service.get("id_servico"))
+        if service_id:
+            dal.update_service(
+                service_id,
+                {
+                    "data_execucao": data_execucao_str,
+                    "responsavel": responsavel,
+                    "status": status,
+                    "ordem_servico": ordem_servico,
+                },
+            )
+            updated_count += 1
+
+    return {
+        "ordem_servico": ordem_servico,
+        "created_count": created_count,
+        "updated_count": updated_count,
+    }
+
+
 def _build_service_items_from_services(services: list) -> list:
     items = []
     for service in services:
@@ -722,6 +809,17 @@ def _normalize_status(value: str) -> str:
 def _is_budget_finalized(status: str) -> bool:
     """Indica se um orçamento está em estado que impede nova efetivação."""
     return _normalize_status(status) in FINALIZED_BUDGET_STATUSES
+
+
+def _is_budget_admin_approved(status: str) -> bool:
+    """Indica se o orçamento já passou pela validação administrativa."""
+    return _normalize_status(status) in ADMIN_APPROVED_BUDGET_STATUSES
+
+
+def _is_budget_pending_admin(status: str) -> bool:
+    """Indica se o orçamento ainda precisa da validação administrativa."""
+    status_norm = _normalize_status(status)
+    return status_norm not in ADMIN_APPROVED_BUDGET_STATUSES and status_norm != "reprovado"
 
 
 def _format_quantity_display(value) -> str:
@@ -1787,7 +1885,7 @@ def registrar_servico():
             "ordem_servico": ordem_servico,
         })
     flash(
-        f"{len(service_items)} serviço(s) registrado(s) na OS {ordem_servico}. Aguarde a revisão do administrador.",
+        f"{len(service_items)} serviço(s) registrado(s) na OS {ordem_servico}. Aguarde a conferência administrativa.",
         "success",
     )
     return redirect(url_for("meus_servicos"))
@@ -2090,7 +2188,9 @@ def historico_servicos():
 
     services_df = dal.get_all_services()
     clients_df = dal.get_all_clients()[["id_cliente", "nome"]]
-    budgets_df = dal.get_all_budgets()[["id_orcamento", "status", "carro_km", "id_veiculo"]]
+    budgets_df = dal.get_all_budgets()[["id_orcamento", "status", "carro_km", "id_veiculo"]].rename(
+        columns={"status": "budget_status"}
+    )
 
     # Busca dados do veículo (placa, marca, modelo) via id_veiculo do orçamento
     vehicles_df = pd.DataFrame(dal.get_all_vehicles())
@@ -2119,37 +2219,52 @@ def historico_servicos():
 
     services_df = services_df.sort_values("data_execucao", ascending=False)
 
-    # Agrupa por orçamento: uma linha por orçamento, itens no detalhe
+    # Mantém serviço direto e orçamento como fluxos separados:
+    # - serviço direto: OS já realizada, sem orçamento/cliente aprovar
+    # - orçamento: proposta que passa por aprovação e efetivação
+    direct_seen: dict = {}
+    direct_order: list = []
     budgets_seen: dict = {}
     budgets_order: list = []
     for row in services_df.to_dict(orient="records"):
         ordem_servico = str(row.get("ordem_servico") or "").strip()
-        key = row.get("id_orcamento") or (f"os_{ordem_servico}" if ordem_servico else f"sem_{row.get('id_servico')}")
-        if key not in budgets_seen:
-            marca  = str(row.get("marca") or "").strip()
+        budget_id = _coerce_int(row.get("id_orcamento"))
+        display_status = row.get("budget_status") if budget_id else row.get("status")
+        if budget_id:
+            key = budget_id
+            target_seen = budgets_seen
+            target_order = budgets_order
+        else:
+            key = f"os_{ordem_servico}" if ordem_servico else f"sem_{row.get('id_servico')}"
+            target_seen = direct_seen
+            target_order = direct_order
+
+        if key not in target_seen:
+            marca = str(row.get("marca") or "").strip()
             modelo = str(row.get("modelo") or "").strip()
-            placa  = str(row.get("placa") or "").strip()
+            placa = str(row.get("placa") or "").strip()
             veiculo_info = " ".join(p for p in [marca, modelo] if p) or "-"
             if placa:
                 veiculo_info += f" ({placa})"
-            budgets_seen[key] = {
-                "budget_id":    row.get("id_orcamento"),
-                "service_id":   row.get("id_orcamento") or row.get("id_servico"),
+            target_seen[key] = {
+                "budget_id": budget_id,
+                "service_id": row.get("id_servico"),
                 "order_number": ordem_servico,
-                "client_id":    row.get("id_cliente"),
-                "client_name":  row.get("nome") or "N/D",
+                "client_id": row.get("id_cliente"),
+                "client_name": row.get("nome") or "N/D",
                 "service_date": _format_date(row.get("data_execucao")),
-                "carro_km":     row.get("carro_km") or "-",
+                "carro_km": row.get("carro_km") or "-",
                 "veiculo_info": veiculo_info,
-                "placa":        placa or "-",
-                "status":       row.get("status") or "Sem status",
-                "total_value":  0.0,
-                "itens":        [],
+                "placa": placa or "-",
+                "status": display_status or "Sem status",
+                "total_value": 0.0,
+                "itens": [],
             }
-            budgets_order.append(key)
-        entry = budgets_seen[key]
-        if _normalize_status(row.get("status")) == "pendente":
-            entry["status"] = row.get("status") or entry["status"]
+            target_order.append(key)
+
+        entry = target_seen[key]
+        if _normalize_status(display_status) == "pendente":
+            entry["status"] = display_status or entry["status"]
         entry["total_value"] = round(entry["total_value"] + float(row.get("valor") or 0), 2)
         entry["itens"].append({
             "tipo":        row.get("tipo_servico") or "-",
@@ -2160,6 +2275,7 @@ def historico_servicos():
         })
 
     services = [budgets_seen[k] for k in budgets_order]
+    direct_services = [direct_seen[k] for k in direct_order]
 
     # Apenas clientes com serviços, em ordem alfabética
     all_services_df = dal.get_all_services().merge(clients_df, on="id_cliente", how="left")
@@ -2186,6 +2302,7 @@ def historico_servicos():
     return render_template(
         "historico_servicos.html",
         services=services,
+        direct_services=direct_services,
         clients=clients,
         selected_client_id=selected_client_id,
         selected_placa=selected_placa,
@@ -2796,7 +2913,7 @@ def novo_orcamento():
             "id_cliente":                client_id,
             "id_veiculo":                id_veiculo,
             "data_criacao":              datetime.today().strftime("%Y-%m-%d"),
-            "status":                    "Em análise",
+            "status":                    BUDGET_STATUS_PENDING_ADMIN,
             "carro_km":                  carro_km,
             "carro_cor":                 carro_cor,
             "responsavel_planejado_id":  responsavel_id or "",
@@ -2809,7 +2926,7 @@ def novo_orcamento():
             "forma_pagamento":           payment_method,
         }
         new_id = dal.add_budget(data)
-        flash("Orçamento criado com sucesso!", "success")
+        flash("Orçamento enviado para validação administrativa.", "success")
         return render_template(
             "orcamento_criado.html",
             orcamento_id=new_id,
@@ -2821,6 +2938,7 @@ def novo_orcamento():
             forma_pagamento=payment_method,
             texto_whatsapp=texto_whatsapp,
             whatsapp_url=whatsapp_url,
+            pending_admin=True,
         )
 
     return render_template(
@@ -2844,14 +2962,18 @@ def listar_orcamentos():
         merged = merged[(~status_norm.isin(FINALIZED_BUDGET_STATUSES)) & (status_norm != "reprovado")]
     merged = merged.sort_values("data_criacao", ascending=False)
     orcamentos = merged.to_dict(orient="records")
+    is_admin = session.get("role") == ROLE_ADMIN
     for orcamento in orcamentos:
         status = orcamento.get("status") or ""
         is_finalizado = _is_budget_finalized(status)
+        is_admin_approved = _is_budget_admin_approved(status)
+        is_pending_admin = _is_budget_pending_admin(status)
         orcamento["is_finalizado"] = is_finalizado
-        orcamento["can_efetivar"] = not is_finalizado
-        # Edição permanece permitida mesmo após efetivação para correções cadastrais.
-        orcamento["can_editar"] = True
-        orcamento["can_reprovar"] = not is_finalizado
+        orcamento["is_pending_admin"] = is_pending_admin
+        orcamento["can_admin_approve"] = is_admin and is_pending_admin
+        orcamento["can_efetivar"] = is_admin and is_admin_approved and not is_finalizado
+        orcamento["can_editar"] = is_admin and not is_finalizado
+        orcamento["can_reprovar"] = is_admin and not is_finalizado
     return render_template("listar_orcamentos.html", orcamentos=orcamentos, filtro=filtro)
 
 
@@ -2871,7 +2993,12 @@ def detalhes_orcamento(budget_id: int):
         forma_pagamento = "PIX"
     final_total = float(budget.get("valor_total", base_total) or base_total)
     taxa = max(0.0, round(final_total - base_total, 2))
-    is_finalizado = _is_budget_finalized(budget.get("status"))
+    status = budget.get("status")
+    is_admin = session.get("role") == ROLE_ADMIN
+    is_finalizado = _is_budget_finalized(status)
+    is_admin_approved = _is_budget_admin_approved(status)
+    is_pending_admin = _is_budget_pending_admin(status)
+    budget_order_number = _service_order_from_records(_get_budget_service_records(budget_id))
 
     return render_template(
         "detalhes_orcamento.html",
@@ -2883,15 +3010,21 @@ def detalhes_orcamento(budget_id: int):
         final_total=final_total,
         taxa=taxa,
         forma_pagamento=forma_pagamento,
-        can_efetivar=not is_finalizado,
-        # Edição permanece permitida mesmo após efetivação para correções cadastrais.
-        can_edit=True,
-        can_reprovar=not is_finalizado,
+        is_pending_admin=is_pending_admin,
+        is_admin_approved=is_admin_approved,
+        can_admin_approve=is_admin and is_pending_admin,
+        can_efetivar=is_admin and is_admin_approved and not is_finalizado,
+        can_edit=is_admin and not is_finalizado,
+        can_reprovar=is_admin and not is_finalizado,
+        can_send_to_client=is_admin_approved,
+        can_download_pdf=is_admin_approved,
         can_recibo=is_finalizado,
+        budget_order_number=budget_order_number,
     )
 
 
 @app.route("/orcamentos/<int:budget_id>/editar", methods=["GET", "POST"])
+@require_admin
 def editar_orcamento(budget_id: int):
     budget = dal.get_budget_by_id(budget_id)
     if not budget:
@@ -3007,6 +3140,9 @@ def gerar_pdf_orcamento(budget_id: int):
     if not budget:
         flash("Orçamento não encontrado.", "danger")
         return redirect(url_for("listar_orcamentos"))
+    if not _is_budget_admin_approved(budget.get("status")):
+        flash("Valide o orçamento como administrador antes de gerar PDF para o cliente.", "warning")
+        return redirect(url_for("detalhes_orcamento", budget_id=budget_id))
 
     client = dal.get_client_by_id(int(budget["id_cliente"]))
     if not client:
@@ -3137,7 +3273,27 @@ def gerar_recibo_servico(service_id: int):
     )
 
 
+@app.route("/orcamentos/<int:budget_id>/aprovar-admin", methods=["POST"])
+@require_admin
+def aprovar_orcamento_admin(budget_id: int):
+    budget = dal.get_budget_by_id(budget_id)
+    if not budget:
+        flash("Orçamento não encontrado.", "danger")
+        return redirect(url_for("listar_orcamentos"))
+    if _is_budget_finalized(budget.get("status")):
+        flash("Orçamento concluído não pode voltar para validação administrativa.", "info")
+        return redirect(url_for("detalhes_orcamento", budget_id=budget_id))
+    if _normalize_status(budget.get("status")) == "reprovado":
+        flash("Orçamento reprovado não pode ser aprovado sem reabertura.", "warning")
+        return redirect(url_for("detalhes_orcamento", budget_id=budget_id))
+
+    dal.update_budget(budget_id, {"status": BUDGET_STATUS_ADMIN_APPROVED})
+    flash("Orçamento aprovado pelo admin. Agora ele pode ser enviado ao cliente.", "success")
+    return redirect(url_for("detalhes_orcamento", budget_id=budget_id))
+
+
 @app.route("/orcamentos/<int:budget_id>/reprovar", methods=["POST"])
+@require_admin
 def reprovar_orcamento(budget_id: int):
     budget = dal.get_budget_by_id(budget_id)
     if not budget:
@@ -3156,6 +3312,7 @@ def reprovar_orcamento(budget_id: int):
 
 
 @app.route("/orcamentos/<int:budget_id>/efetivar", methods=["GET", "POST"])
+@require_admin
 def efetivar_orcamento(budget_id: int):
     budget = dal.get_budget_by_id(budget_id)
     if not budget:
@@ -3164,6 +3321,9 @@ def efetivar_orcamento(budget_id: int):
     if _is_budget_finalized(budget.get("status")):
         flash("Este orçamento já foi concluído e não pode ser efetivado novamente.", "info")
         return redirect(url_for("listar_orcamentos"))
+    if not _is_budget_admin_approved(budget.get("status")):
+        flash("O orçamento precisa da validação administrativa antes de ser efetivado.", "warning")
+        return redirect(url_for("detalhes_orcamento", budget_id=budget_id))
 
     client = dal.get_client_by_id(int(budget["id_cliente"]))
     items = dal.parse_budget_items(budget["itens"])
@@ -3215,35 +3375,26 @@ def efetivar_orcamento(budget_id: int):
             },
         )
 
+        service_status = "Concluído" if is_final_approval else "Aprovado"
+        service_responsavel = responsavel_execucao if is_final_approval else str(
+            budget.get("responsavel_planejado_nome") or ""
+        ).strip()
+        service_sync = _sync_budget_services_from_items(
+            budget_id,
+            budget,
+            items,
+            data_execucao=data_status,
+            status=service_status,
+            responsavel=service_responsavel,
+        )
+        ordem_servico = service_sync["ordem_servico"]
+
         if not is_final_approval:
             flash(
-                "Orçamento aprovado e aguardando execução. Nenhum lançamento financeiro foi criado até a conclusão.",
+                f"Orçamento aprovado para execução. OS {ordem_servico} gerada. Nenhum lançamento financeiro foi criado até a conclusão.",
                 "info",
             )
             return redirect(url_for("detalhes_orcamento", budget_id=budget_id))
-
-        existing_services_df = dal.get_all_services()
-        budget_has_services = (
-            not existing_services_df.empty
-            and "id_orcamento" in existing_services_df.columns
-            and (existing_services_df["id_orcamento"] == budget_id).any()
-        )
-        if not budget_has_services:
-            for item in items:
-                dal.add_service(
-                    {
-                        "id_orcamento": budget_id,
-                        "id_cliente": budget["id_cliente"],
-                        "data_execucao": data_status.strftime("%Y-%m-%d"),
-                        "descricao_servico": item.get("descricao"),
-                        "tipo_servico": item.get("tipo"),
-                        "valor": item.get("subtotal"),
-                        "observacoes": "",
-                        "responsavel": responsavel_execucao,
-                    }
-                )
-        else:
-            app.logger.warning("Serviços já existentes para orçamento %s; inserção duplicada evitada.", budget_id)
 
         existing_financial_df = dal.get_all_financial_entries()
         budget_has_financial_entry = False
@@ -3311,6 +3462,7 @@ def efetivar_orcamento(budget_id: int):
             valor_final=valor_final,
             data_pagamento=data_status,
             texto_whatsapp=pagamento_texto_whatsapp,
+            service_order=ordem_servico,
         )
 
     return render_template(

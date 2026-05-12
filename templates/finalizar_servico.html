@@ -5,7 +5,7 @@
   <div class="col-lg-8">
     <div class="card mb-3">
       <div class="card-body">
-        <h5 class="card-title">Finalizar OS {{ service_ref }}</h5>
+        <h5 class="card-title">Conferir serviço direto {{ service_ref }}</h5>
         <p><strong>Cliente:</strong> {{ client.nome }}</p>
         <p><strong>Responsável pelo registro:</strong> {{ service.responsavel or 'Não informado' }}</p>
         <p><strong>Data do registro:</strong> {{ service.data_execucao or '' }}</p>
@@ -66,7 +66,7 @@
             <label class="form-label">Data de conclusão</label>
             <input type="date" name="data_conclusao" class="form-control" value="{{ today_str }}" required>
           </div>
-          <button type="submit" class="btn btn-success">Finalizar serviço</button>
+          <button type="submit" class="btn btn-success">Aprovar e lançar no financeiro</button>
           <a href="{{ url_for('historico_servicos') }}" class="btn btn-outline-secondary ms-2">Cancelar</a>
         </form>
       </div>
