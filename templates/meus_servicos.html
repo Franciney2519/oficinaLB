@@ -217,6 +217,8 @@
     const noCarsHint = document.getElementById('veiculo-sem-cadastro');
     const clientId = String(clientSelect.value || '');
     const vehicles = vehiclesByClient[clientId] || [];
+    
+    console.log('atualizarCarros - clientId:', clientId, 'vehicles:', vehicles);
 
     vehicleSelect.innerHTML = '';
     const placeholder = document.createElement('option');
@@ -245,5 +247,6 @@
   const vehiclesByClient = {{ vehicles_by_client | tojson }};
   document.getElementById('id_cliente').addEventListener('change', atualizarCarros);
   atualizarCarros();
+})();
 </script>
 {% endblock %}
