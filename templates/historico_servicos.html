@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
+{% set is_admin = session.get('role') == 'admin' %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h3>Histórico de Serviços por Cliente</h3>
   <a href="{{ url_for('clientes') }}" class="btn btn-outline-secondary btn-sm">Voltar para clientes</a>
@@ -61,7 +62,11 @@
               <td>{{ s.client_name }}</td>
               <td><code>{{ s.order_number or '-' }}</code></td>
               <td>{{ s.service_date }}</td>
-              <td>{{ s.total_value | brl }}</td>
+              <td>
+                {% if is_admin %}{{ s.total_value | brl }}{% else %}
+                  <span class="text-muted">Oculto</span>
+                {% endif %}
+              </td>
               <td>
                 {% set status_lower = (s.status or '') | lower %}
                 <span class="badge bg-{{ 'success' if 'conclu' in status_lower else ('warning text-dark' if 'pendente' in status_lower else 'secondary') }}">
@@ -122,7 +127,11 @@
               <td><code>{{ s.order_number or '-' }}</code></td>
               <td>{{ s.service_date }}</td>
               <td>{{ s.carro_km }}</td>
-              <td>{{ s.total_value | brl }}</td>
+              <td>
+                {% if is_admin %}{{ s.total_value | brl }}{% else %}
+                  <span class="text-muted">Oculto</span>
+                {% endif %}
+              </td>
               <td>
                 {% set status_lower = (s.status or '') | lower %}
                 <span class="badge bg-{{ 'success' if 'conclu' in status_lower else ('warning text-dark' if 'aprovado' in status_lower or 'pendente' in status_lower else 'secondary') }}">
@@ -216,6 +225,8 @@
 
 {% block scripts %}
 <script>
+const isAdminDetailsVisible = {{ 'true' if is_admin else 'false' }};
+
 document.querySelectorAll('.btn-detalhes').forEach(function(btn) {
   btn.addEventListener('click', function() {
     try {
@@ -229,8 +240,9 @@ document.querySelectorAll('.btn-detalhes').forEach(function(btn) {
       document.getElementById('det-km').textContent      =
         s.carro_km && s.carro_km !== '-' ? s.carro_km + ' km' : '-';
       document.getElementById('det-status').textContent  = s.status || '-';
-      document.getElementById('det-total').textContent   =
-        'R$ ' + Number(s.total_value || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+      document.getElementById('det-total').textContent   = isAdminDetailsVisible
+        ? 'R$ ' + Number(s.total_value || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})
+        : 'Oculto';
 
       // Montar tabela de itens
       var tbody = document.getElementById('det-itens');
@@ -240,7 +252,9 @@ document.querySelectorAll('.btn-detalhes').forEach(function(btn) {
         [
           item.tipo || '-',
           item.descricao || '-',
-          'R$ ' + Number(item.valor || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2}),
+          isAdminDetailsVisible
+            ? 'R$ ' + Number(item.valor || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})
+            : 'Oculto',
           item.responsavel || '-',
           item.observacoes || '-'
         ].forEach(function(value) {
