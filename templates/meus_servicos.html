@@ -215,7 +215,7 @@
     const clientSelect = document.getElementById('id_cliente');
     const vehicleSelect = document.getElementById('id_veiculo');
     const noCarsHint = document.getElementById('veiculo-sem-cadastro');
-    const clientId = Number(clientSelect.value || 0);
+    const clientId = String(clientSelect.value || '');
     const vehicles = vehiclesByClient[clientId] || [];
 
     vehicleSelect.innerHTML = '';
