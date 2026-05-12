@@ -2,7 +2,7 @@
 
 {% block content %}
 <div class="row">
-  <div class="col-lg-9">
+  <div class="col-lg-10">
     <div class="card mb-3">
       <div class="card-body">
         <h5 class="card-title">Conferir serviço direto {{ service_ref }}</h5>
@@ -10,7 +10,7 @@
         <p><strong>Responsável pelo registro:</strong> {{ service.responsavel or 'Não informado' }}</p>
         <p><strong>Data do registro:</strong> {{ service.data_execucao or '' }}</p>
 
-        <form method="post">
+        <form method="post" id="form-finalizar-servico">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
           <div class="d-flex justify-content-between align-items-center mb-2">
@@ -30,9 +30,7 @@
                     <span class="badge text-bg-{{ 'warning' if (item.status or '')|lower == 'pendente' else 'secondary' }}">
                       {{ item.status or 'Sem status' }}
                     </span>
-                    <button type="button" class="btn btn-sm btn-outline-danger btn-remover-servico d-none">
-                      Remover
-                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger btn-remover-servico d-none">Remover</button>
                   </div>
                 </div>
                 <div class="row g-3">
@@ -42,7 +40,7 @@
                   </div>
                   <div class="col-md-6">
                     <label class="form-label">Valor do serviço</label>
-                    <input type="text" name="valor[]" class="form-control brl-mask" inputmode="numeric" autocomplete="off" value="{% if item.valor %}{{ item.valor | brl | replace('R$ ', '') }}{% endif %}" placeholder="0,00" required>
+                    <input type="text" name="valor[]" class="form-control brl-mask servico-valor" inputmode="numeric" autocomplete="off" value="{% if item.valor %}{{ item.valor | brl | replace('R$ ', '') }}{% endif %}" placeholder="0,00" required>
                   </div>
                   <div class="col-12">
                     <label class="form-label">Descrição do serviço</label>
@@ -73,13 +71,24 @@
                     <button type="button" class="btn btn-sm btn-outline-danger btn-remover-produto">Remover</button>
                   </div>
                   <div class="row g-3">
-                    <div class="col-md-7">
-                      <label class="form-label">Descrição do produto/material</label>
-                      <input type="text" name="produto_descricao[]" class="form-control" value="{{ product.descricao or '' }}" placeholder="Ex: Óleo 5W30, pastilha de freio">
+                    <div class="col-md-4">
+                      <label class="form-label">Descrição</label>
+                      <input type="text" name="produto_descricao[]" class="form-control" value="{{ product.descricao or '' }}" placeholder="Ex: Óleo 5W30">
                     </div>
-                    <div class="col-md-5">
-                      <label class="form-label">Valor do produto/material</label>
-                      <input type="text" name="produto_valor[]" class="form-control brl-mask" inputmode="numeric" autocomplete="off" value="{{ product.valor | brl | replace('R$ ', '') }}" placeholder="0,00">
+                    <div class="col-md-2">
+                      <label class="form-label">Quantidade</label>
+                      <input type="text" name="produto_quantidade[]" class="form-control produto-quantidade" inputmode="decimal" value="{{ product.quantidade or 1 }}" placeholder="1">
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label">Compra un.</label>
+                      <input type="text" name="produto_custo[]" class="form-control brl-mask produto-custo" inputmode="numeric" autocomplete="off" value="{{ product.custo_unitario | brl | replace('R$ ', '') }}" placeholder="0,00">
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label">Venda un.</label>
+                      <input type="text" name="produto_valor[]" class="form-control brl-mask produto-venda" inputmode="numeric" autocomplete="off" value="{{ product.valor_unitario | brl | replace('R$ ', '') }}" placeholder="0,00">
+                    </div>
+                    <div class="col-12">
+                      <div class="small text-muted produto-resumo">Venda R$ 0,00 | Compra R$ 0,00 | Lucro R$ 0,00</div>
                     </div>
                   </div>
                 </div>
@@ -91,17 +100,60 @@
                   <button type="button" class="btn btn-sm btn-outline-danger btn-remover-produto d-none">Remover</button>
                 </div>
                 <div class="row g-3">
-                  <div class="col-md-7">
-                    <label class="form-label">Descrição do produto/material</label>
-                    <input type="text" name="produto_descricao[]" class="form-control" placeholder="Ex: Óleo 5W30, pastilha de freio">
+                  <div class="col-md-4">
+                    <label class="form-label">Descrição</label>
+                    <input type="text" name="produto_descricao[]" class="form-control" placeholder="Ex: Óleo 5W30">
                   </div>
-                  <div class="col-md-5">
-                    <label class="form-label">Valor do produto/material</label>
-                    <input type="text" name="produto_valor[]" class="form-control brl-mask" inputmode="numeric" autocomplete="off" placeholder="0,00">
+                  <div class="col-md-2">
+                    <label class="form-label">Quantidade</label>
+                    <input type="text" name="produto_quantidade[]" class="form-control produto-quantidade" inputmode="decimal" value="1" placeholder="1">
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label">Compra un.</label>
+                    <input type="text" name="produto_custo[]" class="form-control brl-mask produto-custo" inputmode="numeric" autocomplete="off" placeholder="0,00">
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label">Venda un.</label>
+                    <input type="text" name="produto_valor[]" class="form-control brl-mask produto-venda" inputmode="numeric" autocomplete="off" placeholder="0,00">
+                  </div>
+                  <div class="col-12">
+                    <div class="small text-muted produto-resumo">Venda R$ 0,00 | Compra R$ 0,00 | Lucro R$ 0,00</div>
                   </div>
                 </div>
               </div>
             {% endif %}
+          </div>
+
+          <div class="border rounded p-3 bg-light mb-3" id="resumo-os">
+            <h6 class="fw-bold mb-3">Resumo da OS</h6>
+            <div class="row g-3">
+              <div class="col-md-3">
+                <div class="text-muted small">Serviços</div>
+                <div class="fw-semibold" id="resumo-servicos">R$ 0,00</div>
+              </div>
+              <div class="col-md-3">
+                <div class="text-muted small">Venda de materiais</div>
+                <div class="fw-semibold" id="resumo-produtos-venda">R$ 0,00</div>
+              </div>
+              <div class="col-md-3">
+                <div class="text-muted small">Custo de materiais</div>
+                <div class="fw-semibold text-danger" id="resumo-produtos-compra">R$ 0,00</div>
+              </div>
+              <div class="col-md-3">
+                <div class="text-muted small">Lucro em materiais</div>
+                <div class="fw-semibold" id="resumo-produtos-lucro">R$ 0,00</div>
+              </div>
+              <div class="col-12 border-top pt-3">
+                <div class="d-flex justify-content-between align-items-center">
+                  <span class="fw-bold">Total da OS para o cliente</span>
+                  <span class="fw-bold fs-5 text-success" id="resumo-total-os">R$ 0,00</span>
+                </div>
+                <div class="small text-muted mt-1">
+                  Entrada no financeiro: <span id="resumo-entrada">R$ 0,00</span> |
+                  Saída de materiais: <span id="resumo-saida">R$ 0,00</span>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="mb-3 row g-3">
@@ -141,7 +193,7 @@
       </div>
       <div class="col-md-6">
         <label class="form-label">Valor do serviço</label>
-        <input type="text" name="valor[]" class="form-control brl-mask" inputmode="numeric" autocomplete="off" placeholder="0,00" required>
+        <input type="text" name="valor[]" class="form-control brl-mask servico-valor" inputmode="numeric" autocomplete="off" placeholder="0,00" required>
       </div>
       <div class="col-12">
         <label class="form-label">Descrição do serviço</label>
@@ -162,13 +214,24 @@
       <button type="button" class="btn btn-sm btn-outline-danger btn-remover-produto">Remover</button>
     </div>
     <div class="row g-3">
-      <div class="col-md-7">
-        <label class="form-label">Descrição do produto/material</label>
-        <input type="text" name="produto_descricao[]" class="form-control" placeholder="Ex: Óleo 5W30, pastilha de freio">
+      <div class="col-md-4">
+        <label class="form-label">Descrição</label>
+        <input type="text" name="produto_descricao[]" class="form-control" placeholder="Ex: Óleo 5W30">
       </div>
-      <div class="col-md-5">
-        <label class="form-label">Valor do produto/material</label>
-        <input type="text" name="produto_valor[]" class="form-control brl-mask" inputmode="numeric" autocomplete="off" placeholder="0,00">
+      <div class="col-md-2">
+        <label class="form-label">Quantidade</label>
+        <input type="text" name="produto_quantidade[]" class="form-control produto-quantidade" inputmode="decimal" value="1" placeholder="1">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Compra un.</label>
+        <input type="text" name="produto_custo[]" class="form-control brl-mask produto-custo" inputmode="numeric" autocomplete="off" placeholder="0,00">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Venda un.</label>
+        <input type="text" name="produto_valor[]" class="form-control brl-mask produto-venda" inputmode="numeric" autocomplete="off" placeholder="0,00">
+      </div>
+      <div class="col-12">
+        <div class="small text-muted produto-resumo">Venda R$ 0,00 | Compra R$ 0,00 | Lucro R$ 0,00</div>
       </div>
     </div>
   </div>
@@ -178,12 +241,27 @@
 {% block scripts %}
 <script>
   (function () {
+    const form = document.getElementById('form-finalizar-servico');
     const servicosLista = document.getElementById('servicos-admin');
     const produtosLista = document.getElementById('produtos-admin');
     const servicoTemplate = document.getElementById('servico-template');
     const produtoTemplate = document.getElementById('produto-template');
     const btnAdicionarServico = document.getElementById('btn-adicionar-servico-admin');
     const btnAdicionarProduto = document.getElementById('btn-adicionar-produto-admin');
+
+    function parseQuantidade(value) {
+      const text = String(value || '').trim();
+      const normalized = text.includes(',') ? text.replace(/\./g, '').replace(',', '.') : text;
+      const parsed = parseFloat(normalized);
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+    }
+
+    function moeda(value) {
+      return new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL'
+      }).format(Number.isFinite(value) ? value : 0);
+    }
 
     function atualizarServicos() {
       const itens = Array.from(servicosLista.querySelectorAll('.servico-admin'));
@@ -194,6 +272,7 @@
           remover.classList.toggle('d-none', item.dataset.existing === 'true');
         }
       });
+      atualizarResumo();
     }
 
     function atualizarProdutos() {
@@ -205,6 +284,47 @@
           remover.classList.toggle('d-none', itens.length === 1);
         }
       });
+      atualizarResumo();
+    }
+
+    function atualizarResumo() {
+      let totalServicos = 0;
+      servicosLista.querySelectorAll('input[name="valor[]"]').forEach((input) => {
+        totalServicos += parseBRLInput(input.value);
+      });
+
+      let totalVendaProdutos = 0;
+      let totalCompraProdutos = 0;
+      produtosLista.querySelectorAll('.produto-admin').forEach((item) => {
+        const quantidade = parseQuantidade(item.querySelector('input[name="produto_quantidade[]"]')?.value || '1');
+        const custoUnitario = parseBRLInput(item.querySelector('input[name="produto_custo[]"]')?.value || '');
+        const vendaUnitario = parseBRLInput(item.querySelector('input[name="produto_valor[]"]')?.value || '');
+        const compra = quantidade * custoUnitario;
+        const venda = quantidade * vendaUnitario;
+        const lucro = venda - compra;
+        totalCompraProdutos += compra;
+        totalVendaProdutos += venda;
+
+        const resumo = item.querySelector('.produto-resumo');
+        if (resumo) {
+          resumo.textContent = 'Venda ' + moeda(venda) + ' | Compra ' + moeda(compra) + ' | Lucro ' + moeda(lucro);
+          resumo.classList.toggle('text-danger', lucro < 0);
+          resumo.classList.toggle('text-success', lucro > 0);
+          resumo.classList.toggle('text-muted', lucro === 0);
+        }
+      });
+
+      const lucroProdutos = totalVendaProdutos - totalCompraProdutos;
+      const totalOs = totalServicos + totalVendaProdutos;
+      document.getElementById('resumo-servicos').textContent = moeda(totalServicos);
+      document.getElementById('resumo-produtos-venda').textContent = moeda(totalVendaProdutos);
+      document.getElementById('resumo-produtos-compra').textContent = moeda(totalCompraProdutos);
+      document.getElementById('resumo-produtos-lucro').textContent = moeda(lucroProdutos);
+      document.getElementById('resumo-total-os').textContent = moeda(totalOs);
+      document.getElementById('resumo-entrada').textContent = moeda(totalOs);
+      document.getElementById('resumo-saida').textContent = moeda(totalCompraProdutos);
+      document.getElementById('resumo-produtos-lucro').classList.toggle('text-danger', lucroProdutos < 0);
+      document.getElementById('resumo-produtos-lucro').classList.toggle('text-success', lucroProdutos > 0);
     }
 
     btnAdicionarServico.addEventListener('click', function () {
@@ -240,6 +360,10 @@
         item.remove();
         atualizarProdutos();
       }
+    });
+
+    form.addEventListener('input', function () {
+      atualizarResumo();
     });
 
     atualizarServicos();

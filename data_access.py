@@ -56,7 +56,7 @@ ORCAMENTO_COLUMNS = [
 SERVICO_COLUMNS = [
     "id_servico", "id_orcamento", "id_cliente", "data_execucao",
     "descricao_servico", "tipo_servico", "valor", "observacoes", "responsavel",
-    "status", "produto_descricao", "produto_valor", "ordem_servico",
+    "status", "produto_descricao", "produto_valor", "produto_itens", "ordem_servico",
 ]
 FINANCEIRO_COLUMNS = [
     "id_lancamento", "data", "tipo_lancamento", "categoria", "descricao",
@@ -163,12 +163,14 @@ def init_db() -> None:
                     status            TEXT,
                     produto_descricao TEXT,
                     produto_valor     NUMERIC,
+                    produto_itens     TEXT,
                     ordem_servico     TEXT
                 )
             """)
             cur.execute("ALTER TABLE servicos ADD COLUMN IF NOT EXISTS status TEXT")
             cur.execute("ALTER TABLE servicos ADD COLUMN IF NOT EXISTS produto_descricao TEXT")
             cur.execute("ALTER TABLE servicos ADD COLUMN IF NOT EXISTS produto_valor NUMERIC")
+            cur.execute("ALTER TABLE servicos ADD COLUMN IF NOT EXISTS produto_itens TEXT")
             cur.execute("ALTER TABLE servicos ADD COLUMN IF NOT EXISTS ordem_servico TEXT")
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS financeiro (
