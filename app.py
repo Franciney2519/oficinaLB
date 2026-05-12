@@ -1760,6 +1760,17 @@ def _get_veiculo_for_orcamento(budget: dict, client: dict) -> dict:
                 return v
         except (TypeError, ValueError):
             pass
+
+    # Se não houver veículo vinculado ao orçamento, use o primeiro veículo cadastrado do cliente.
+    client_id = (client or {}).get("id_cliente")
+    if client_id is not None:
+        try:
+            client_vehicles = dal.get_vehicles_by_client(int(client_id))
+            if client_vehicles:
+                return client_vehicles[0]
+        except (TypeError, ValueError):
+            pass
+
     return {
         "id_veiculo": None,
         "marca": (client or {}).get("carro_marca", ""),
