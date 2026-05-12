@@ -193,6 +193,7 @@
             <p class="mb-1 text-muted small">Total do Orçamento</p>
             <p class="fw-semibold mb-0 text-success" id="det-total"></p>
           </div>
+          <div class="col-sm-12 text-end" id="det-receipt-action"></div>
         </div>
 
         <hr>
@@ -243,6 +244,21 @@ document.querySelectorAll('.btn-detalhes').forEach(function(btn) {
       document.getElementById('det-total').textContent   = isAdminDetailsVisible
         ? 'R$ ' + Number(s.total_value || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})
         : 'Oculto';
+
+      var receiptAction = document.getElementById('det-receipt-action');
+      var statusNormalized = String(s.status || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .toLowerCase();
+      if (s.service_id && statusNormalized === 'concluido') {
+        receiptAction.innerHTML =
+          '<a href="/servicos/' + encodeURIComponent(s.service_id) + '/recibo" ' +
+          'class="btn btn-primary btn-sm" target="_blank">' +
+          '<i class="bi bi-download me-1"></i>Gerar comprovante</a>';
+      } else {
+        receiptAction.replaceChildren();
+      }
 
       // Montar tabela de itens
       var tbody = document.getElementById('det-itens');
