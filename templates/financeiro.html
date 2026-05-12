@@ -164,25 +164,7 @@
     tipoSelect.addEventListener('change', atualizarCategorias);
   }
 
-  // Máscara de moeda pt-BR no campo valor
-  const inputValor = document.getElementById('inputValor');
-  if (inputValor) {
-    inputValor.addEventListener('input', function() {
-      let digits = this.value.replace(/\D/g, '');
-      if (!digits) { this.value = ''; return; }
-      let number = parseInt(digits, 10);
-      this.value = (number / 100).toLocaleString('pt-BR', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-      });
-    });
-    inputValor.addEventListener('keydown', function(e) {
-      // Permite: backspace, delete, tab, escape, setas
-      if ([8,9,27,46,37,38,39,40].includes(e.keyCode)) return;
-      // Bloqueia qualquer tecla que não seja número
-      if (!/^\d$/.test(e.key)) e.preventDefault();
-    });
-  }
+  // Máscara R$ aplicada globalmente via class .brl-mask (base.html).
 })();
 </script>
 {% endblock %}

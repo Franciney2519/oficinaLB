@@ -671,8 +671,15 @@ def _parse_date(date_str: str) -> datetime:
 
 
 def _parse_brl_number(raw_value: str) -> float:
-    """Converte valor monetário em formato pt-BR/en para float (ex.: 1.234,56 ou 1234.56)."""
+    """Converte valor monetário em formato pt-BR/en para float (ex.: R$ 1.234,56, 1234.56)."""
     value = (raw_value or "").strip()
+    if not value:
+        return 0.0
+
+    # Remove prefixo R$ e qualquer caractere de moeda/espaço.
+    value = value.replace("R$", "").replace("r$", "").replace(" ", " ").strip()
+    value = value.replace(" ", "")
+
     if not value:
         return 0.0
 
@@ -683,7 +690,10 @@ def _parse_brl_number(raw_value: str) -> float:
         # Formato com vírgula decimal.
         value = value.replace(",", ".")
 
-    return float(value)
+    try:
+        return float(value)
+    except ValueError:
+        return 0.0
 
 
 def _generate_service_order_number(now: Optional[datetime] = None) -> str:
@@ -2475,13 +2485,14 @@ def _generate_budget_pdf(budget: dict, client: dict, items: List[dict], veiculo:
     pdf.set_auto_page_break(auto=True, margin=18)
     pdf.add_page()
 
-    yellow = (244, 195, 28)
-    dark_blue = (26, 55, 102)
-    light_gray = (230, 230, 230)
+    # Paleta da marca (LB Auto Car): preto/grafite + vermelho vibrante + cinza neutro.
+    brand_red = (220, 38, 38)
+    brand_dark = (20, 20, 20)
+    light_gray = (240, 240, 240)
     text_gray = (90, 90, 90)
 
-    # Faixas decorativas inspiradas no template.
-    pdf.set_fill_color(*yellow)
+    # Faixas decorativas vermelhas (marca).
+    pdf.set_fill_color(*brand_red)
     pdf.rect(-5, -5, 90, 18, "F")
     pdf.rect(150, 285, 70, 15, "F")
 
@@ -2498,7 +2509,7 @@ def _generate_budget_pdf(budget: dict, client: dict, items: List[dict], veiculo:
     # Contatos no topo direito.
     pdf.set_xy(135, 14)
     pdf.set_font("Arial", "", 10)
-    pdf.set_text_color(*dark_blue)
+    pdf.set_text_color(*brand_dark)
     contact_lines = [COMPANY_INFO.get("telefone", "")]
     email = COMPANY_INFO.get("email")
     if email:
@@ -2508,7 +2519,7 @@ def _generate_budget_pdf(budget: dict, client: dict, items: List[dict], veiculo:
     # Título.
     pdf.set_y(max(y_after_logo + 6, 50))
     pdf.set_font("Arial", "B", 26)
-    pdf.set_text_color(*dark_blue)
+    pdf.set_text_color(*brand_red)
     pdf.cell(0, 12, "ORÇAMENTO", ln=1, align="C")
 
     base_total = sum(float(item.get("subtotal", 0) or 0) for item in items)
@@ -2530,11 +2541,11 @@ def _generate_budget_pdf(budget: dict, client: dict, items: List[dict], veiculo:
         pdf.rect(10, row_y, 190, 12, "F")
         pdf.set_xy(14, row_y + 3.5)
         pdf.set_font("Arial", "B", 10)
-        pdf.set_text_color(*dark_blue)
+        pdf.set_text_color(*brand_red)
         pdf.cell(0, 0, _pdf_safe_text(label.upper()))
         pdf.set_xy(70, row_y + 2.5)
         pdf.set_font("Arial", "B", 11)
-        pdf.set_text_color(0, 0, 0)
+        pdf.set_text_color(*brand_dark)
         pdf.cell(0, 0, _pdf_safe_text(value))
         row_y += 14
     pdf.set_y(row_y + 4)
@@ -2547,8 +2558,8 @@ def _generate_budget_pdf(budget: dict, client: dict, items: List[dict], veiculo:
         ("UNITÁRIO", 32),
         ("TOTAL", 36),
     ]
-    pdf.set_fill_color(*yellow)
-    pdf.set_text_color(*dark_blue)
+    pdf.set_fill_color(*brand_red)
+    pdf.set_text_color(255, 255, 255)
     pdf.set_font("Arial", "B", 11)
     for header, width in headers:
         pdf.cell(width, 9, header, border=1, align="C", fill=True)
@@ -2585,8 +2596,8 @@ def _generate_budget_pdf(budget: dict, client: dict, items: List[dict], veiculo:
             pdf.cell(width, 9, _pdf_safe_text(value), border=1, align=align)
         pdf.ln()
 
-    pdf.set_fill_color(*yellow)
-    pdf.set_text_color(*dark_blue)
+    pdf.set_fill_color(*brand_red)
+    pdf.set_text_color(255, 255, 255)
     pdf.set_font("Arial", "B", 11)
     pdf.cell(sum(width for _, width in headers[:-1]), 9, "TOTAL:", border=1, align="R", fill=True)
     pdf.cell(headers[-1][1], 9, dal.format_currency(final_total), border=1, align="C", fill=True)
@@ -2602,7 +2613,7 @@ def _generate_budget_pdf(budget: dict, client: dict, items: List[dict], veiculo:
         pdf.ln(4)
 
     # Informações complementares.
-    pdf.set_text_color(*dark_blue)
+    pdf.set_text_color(*brand_dark)
     pdf.set_font("Arial", "B", 12)
     pdf.cell(0, 7, "DATA:", ln=1)
     pdf.set_font("Arial", "", 11)
@@ -2642,14 +2653,21 @@ def _generate_receipt_pdf(
     data_conclusao: datetime,
     responsavel_execucao: str = "",
     veiculo: Optional[dict] = None,
+    receipt_number: Optional[str] = None,
+    referencia_label: Optional[str] = None,
 ) -> BytesIO:
-    """Gera um recibo baseado nos dados do orçamento e pagamento."""
+    """Gera um recibo baseado nos dados do orçamento e pagamento.
+
+    receipt_number: rótulo do número do recibo (ex.: budget_id ou "OS-0123"). Default: budget_id.
+    referencia_label: descrição da origem na frase de recibo (ex.: "Orçamento #12" ou "OS 0123"). Default: "Orçamento #{budget_id}".
+    """
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=18)
     pdf.add_page()
-    yellow = (244, 195, 28)
-    dark_blue = (26, 55, 102)
-    gray = (200, 200, 200)
+    # Paleta da marca (LB Auto Car): preto/grafite + vermelho vibrante + cinza neutro.
+    brand_red = (220, 38, 38)
+    brand_dark = (20, 20, 20)
+    gray = (235, 235, 235)
 
     header_top = 14
     logo_w = 26
@@ -2666,10 +2684,11 @@ def _generate_receipt_pdf(
     text_x = 50
     block_w = 95
     pdf.set_font("Arial", "B", 12)
-    pdf.set_text_color(*dark_blue)
+    pdf.set_text_color(*brand_red)
     pdf.set_xy(text_x, header_top)
     pdf.cell(block_w, 6, _pdf_safe_text(COMPANY_INFO.get("razao_social", "")), ln=1)
 
+    pdf.set_text_color(*brand_dark)
     pdf.set_font("Arial", "", 10)
     pdf.set_x(text_x)
     pdf.cell(block_w, 5, f"CNPJ: {_pdf_safe_text(COMPANY_INFO.get('cnpj', ''))}", ln=1)
@@ -2685,14 +2704,20 @@ def _generate_receipt_pdf(
 
     pdf.set_xy(150, header_top)
     pdf.set_font("Arial", "B", 11)
-    pdf.cell(40, 8, f"RECIBO Nº: {budget_id}", border=1, align="C", ln=1)
+    pdf.set_fill_color(*brand_red)
+    pdf.set_text_color(255, 255, 255)
+    receipt_label = str(receipt_number) if receipt_number is not None else str(budget_id)
+    pdf.cell(40, 8, _pdf_safe_text(f"RECIBO Nº: {receipt_label}"), border=1, align="C", ln=1, fill=True)
+    pdf.set_text_color(*brand_dark)
     header_bottom = max(logo_bottom, text_bottom, pdf.get_y())
 
     # Bloco de informações do cliente.
     pdf.set_y(header_bottom + 12)
-    pdf.set_fill_color(*gray)
+    pdf.set_fill_color(*brand_dark)
+    pdf.set_text_color(255, 255, 255)
     pdf.set_font("Arial", "B", 11)
     pdf.cell(0, 8, "INFORMAÇÕES DO CLIENTE", ln=1, align="C", fill=True)
+    pdf.set_text_color(*brand_dark)
     pdf.set_font("Arial", "", 10)
     pdf.set_draw_color(80, 80, 80)
 
@@ -2748,10 +2773,11 @@ def _generate_receipt_pdf(
         f"{item.get('descricao', 'Item')} ({item.get('quantidade', 1)}x {dal.format_currency(item.get('valor_unitario', 0))})"
         for item in items
     )
+    ref_text = referencia_label if referencia_label else f"Orçamento #{budget_id}"
     descricao_texto = (
         f'Recebi(emos) de {_pdf_safe_text(client.get("nome", "cliente não informado"))}, '
         f'a quantia de {dal.format_currency(valor_final)}, referente aos serviços/itens: {descricao_itens or "Itens do orçamento"}. '
-        f'Orçamento #{budget_id} concluído em {_format_date(data_conclusao)}.'
+        f'{ref_text} concluído em {_format_date(data_conclusao)}.'
     )
     pdf.set_font("Arial", "", 10)
     pdf.multi_cell(0, 6, _pdf_safe_text(descricao_texto), border=1)
@@ -2759,7 +2785,9 @@ def _generate_receipt_pdf(
     # Observações.
     pdf.ln(4)
     pdf.set_font("Arial", "B", 10)
+    pdf.set_text_color(*brand_red)
     pdf.cell(0, 6, "OBSERVAÇÕES.", ln=1)
+    pdf.set_text_color(*brand_dark)
     obs_text = "-"
     if responsavel_execucao:
         obs_text = f"Serviço realizado por: {responsavel_execucao}"
@@ -2773,13 +2801,13 @@ def _generate_receipt_pdf(
     pdf.cell(0, 5, f"Hora: {datetime.now().strftime('%H:%M:%S')}", ln=1, align="R")
 
     pdf.ln(6)
-    pdf.set_fill_color(220, 60, 60)
+    pdf.set_fill_color(*brand_red)
     pdf.set_text_color(255, 255, 255)
     pdf.set_font("Arial", "B", 12)
     pdf.cell(25, 10, "PAGO", border=1, align="C", fill=True)
 
     pdf.set_xy(40, pdf.get_y() - 2)
-    pdf.set_text_color(0, 0, 0)
+    pdf.set_text_color(*brand_dark)
     pdf.set_font("Arial", "B", 10)
     pdf.cell(0, 6, _pdf_safe_text(COMPANY_INFO.get("razao_social", "")), ln=1)
     pdf.set_font("Arial", "", 9)
@@ -2832,78 +2860,6 @@ def _generate_service_payment_whatsapp_text(
         "Obrigado pela preferência! Qualquer dúvida é só chamar.",
     ]
     return "\n".join(linhas)
-
-
-def _generate_service_receipt_pdf(
-    service_id: int,
-    service: dict,
-    client: dict,
-    items: list,
-    valor_final: float,
-    data_conclusao: datetime,
-    receipt_number=None,
-) -> BytesIO:
-    pdf = FPDF()
-    pdf.set_auto_page_break(auto=True, margin=18)
-    pdf.add_page()
-
-    pdf.set_font("Arial", "B", 16)
-    pdf.cell(0, 10, f"RECIBO N\u00ba: {receipt_number or service_id}", ln=1)
-    pdf.set_font("Arial", "", 10)
-    pdf.cell(0, 6, COMPANY_INFO.get("razao_social", ""), ln=1)
-    pdf.cell(0, 6, COMPANY_INFO.get("endereco", ""), ln=1)
-    pdf.cell(0, 6, COMPANY_INFO.get("telefone", ""), ln=1)
-    if COMPANY_INFO.get("email"):
-        pdf.cell(0, 6, COMPANY_INFO.get("email"), ln=1)
-    pdf.ln(6)
-
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 8, "CLIENTE", ln=1)
-    pdf.set_font("Arial", "", 10)
-    pdf.cell(0, 6, client.get("nome", ""), ln=1)
-    pdf.cell(0, 6, f"Telefone: {client.get('telefone_whatsapp', '')}", ln=1)
-    pdf.ln(4)
-
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 8, "SERVIÇO", ln=1)
-    pdf.set_font("Arial", "", 10)
-    pdf.multi_cell(0, 6, service.get("descricao_servico", ""), border=0)
-    pdf.ln(4)
-
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 8, "ITENS", ln=1)
-    pdf.set_font("Arial", "", 10)
-    for item in items:
-        descricao = item.get("descricao", "")
-        quantidade = item.get("quantidade", 1)
-        valor_unitario = float(item.get("valor_unitario", 0) or 0)
-        subtotal = float(item.get("subtotal", 0) or 0)
-        pdf.multi_cell(0, 6, f"- {descricao} ({quantidade}x R$ {valor_unitario:.2f}) = R$ {subtotal:.2f}")
-
-    pdf.ln(4)
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 8, "VALOR TOTAL", ln=1)
-    pdf.set_font("Arial", "", 10)
-    pdf.cell(0, 6, f"R$ {valor_final:.2f}", ln=1)
-    pdf.ln(4)
-
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 8, "DADOS", ln=1)
-    pdf.set_font("Arial", "", 10)
-    pdf.cell(0, 6, f"Data: {data_conclusao.strftime('%d/%m/%Y')}", ln=1)
-    pdf.cell(0, 6, f"Responsável: {service.get('responsavel', '')}", ln=1)
-    pdf.ln(8)
-
-    pdf.set_font("Arial", "I", 9)
-    pdf.multi_cell(
-        0,
-        5,
-        "Este recibo comprova o pagamento do serviço informado. Qualquer dúvida, entre em contato com a oficina.",
-    )
-
-    buffer = BytesIO(pdf.output(dest="S").encode("latin-1", errors="replace"))
-    buffer.seek(0)
-    return buffer
 
 
 def _load_vehicles_by_client(clients: list) -> dict:
@@ -3320,17 +3276,30 @@ def gerar_recibo_servico(service_id: int):
         valor_final += produto_valor
 
     data_conclusao = _parse_date(primary_service.get("data_execucao")) or datetime.today()
-    service_context = dict(primary_service)
-    if primary_service.get("ordem_servico"):
-        service_context["descricao_servico"] = f"Ordem de serviço {service_ref}"
-    pdf_buffer = _generate_service_receipt_pdf(
-        service_id=service_id,
-        service=service_context,
+
+    # Reusa o mesmo layout do recibo de orçamento. Busca o orçamento associado (se houver)
+    # para preencher carro_cor / carro_km; senão, usa um pseudo-budget mínimo.
+    budget_for_receipt: dict = {}
+    id_orcamento = primary_service.get("id_orcamento")
+    if id_orcamento:
+        try:
+            budget_for_receipt = dal.get_budget_by_id(int(id_orcamento)) or {}
+        except (TypeError, ValueError):
+            budget_for_receipt = {}
+    veiculo = _get_veiculo_for_orcamento(budget_for_receipt, client)
+    responsavel_receipt = str(primary_service.get("responsavel") or "").strip()
+
+    pdf_buffer = _generate_receipt_pdf(
+        budget_id=int(id_orcamento) if id_orcamento else service_id,
+        budget=budget_for_receipt,
         client=client,
         items=items,
         valor_final=valor_final,
         data_conclusao=data_conclusao,
+        responsavel_execucao=responsavel_receipt,
+        veiculo=veiculo,
         receipt_number=service_ref,
+        referencia_label=f"OS {service_ref}",
     )
     filename = f"recibo_{_slugify_filename(service_ref)}_{_slugify_filename(client.get('nome', ''))}.pdf"
     pdf_buffer.seek(0)

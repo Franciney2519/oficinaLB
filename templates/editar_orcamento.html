@@ -155,30 +155,16 @@ selectVeiculo.addEventListener('change', function() {
 populateVehicles(currentClientId, currentVeiculoId);
 if (!inputCor.value && currentCor) inputCor.value = currentCor;
 
-function formatBRL(v) {
+function formatBRLDisplay(v) {
   return 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function aplicarMascaraValor(input) {
-  input.addEventListener('input', function() {
-    let digits = this.value.replace(/\D/g, '');
-    if (!digits) { this.value = ''; return; }
-    this.value = (parseInt(digits, 10) / 100).toLocaleString('pt-BR', {
-      minimumFractionDigits: 2, maximumFractionDigits: 2
-    });
-  });
-  input.addEventListener('keydown', function(e) {
-    if ([8, 9, 27, 46, 37, 38, 39, 40].includes(e.keyCode)) return;
-    if (!/^\d$/.test(e.key)) e.preventDefault();
-  });
 }
 
 // --- Itens ---
 function atualizarTotal() {
   let total = 0;
   tabela.querySelectorAll('tr').forEach(row => {
-    const qtd   = parseFloat(row.querySelector("input[name='item_quantidade[]']").value.replace(',', '.')) || 0;
-    const valor = parseFloat(row.querySelector("input[name='item_valor[]']").value.replace(/\./g, '').replace(',', '.')) || 0;
+    const qtd   = parseFloat((row.querySelector("input[name='item_quantidade[]']").value || '0').replace(',', '.')) || 0;
+    const valor = parseBRLInput(row.querySelector("input[name='item_valor[]']").value);
     total += qtd * valor;
   });
   totalAtual = total;
@@ -186,14 +172,15 @@ function atualizarTotal() {
 }
 
 function atualizarResumo() {
-  valorTotalBase.value  = formatBRL(totalAtual);
+  valorTotalBase.value  = formatBRLDisplay(totalAtual);
   let final = totalAtual;
   if (formaPagamento.value === 'Cartão Crédito') final = +(totalAtual * 1.03).toFixed(2);
-  valorTotalFinal.value = formatBRL(final);
+  valorTotalFinal.value = formatBRLDisplay(final);
 }
 
 function valorParaString(v) {
   if (!v) return '';
+  // Retorna apenas a parte numérica; a máscara global injeta o prefixo "R$ " ao carregar.
   return parseFloat(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
@@ -276,8 +263,10 @@ function criarLinha(item = {}) {
   tipoSelect.addEventListener('change', toggleCusto);
   toggleCusto();
   tr.querySelectorAll('input').forEach(input => input.addEventListener('input', atualizarTotal));
-  aplicarMascaraValor(valorInput);
-  aplicarMascaraValor(custoInput);
+  // Máscara R$ aplicada globalmente via class .brl-mask (base.html).
+  // Reaplica nos inputs recém-criados (DOMContentLoaded já passou).
+  applyBRLMask(valorInput);
+  applyBRLMask(custoInput);
   removerBtn.addEventListener('click', () => { tr.remove(); atualizarTotal(); });
   tabela.appendChild(tr);
 }

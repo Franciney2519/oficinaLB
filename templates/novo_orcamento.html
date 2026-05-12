@@ -114,37 +114,21 @@ const spanFinal      = document.getElementById('valorTotalFinal');
 const hiddenBase     = document.getElementById('hiddenTotalBase');
 const hiddenFinal    = document.getElementById('hiddenTotalFinal');
 
-function formatBRL(v) {
+function formatBRLDisplay(v) {
   return 'R$ ' + v.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-}
-
-function aplicarMascaraValor(input) {
-  input.addEventListener('input', function() {
-    let digits = this.value.replace(/\D/g, '');
-    if (!digits) { this.value = ''; return; }
-    let number = parseInt(digits, 10);
-    this.value = (number / 100).toLocaleString('pt-BR', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    });
-  });
-  input.addEventListener('keydown', function(e) {
-    if ([8, 9, 27, 46, 37, 38, 39, 40].includes(e.keyCode)) return;
-    if (!/^\d$/.test(e.key)) e.preventDefault();
-  });
 }
 
 function atualizarTotal() {
   let total = 0;
   listaItens.querySelectorAll('.item-card').forEach(card => {
-    const qtd   = parseFloat(card.querySelector('.inp-qtd').value.replace(',', '.')) || 0;
-    const valor = parseFloat(card.querySelector('.inp-valor').value.replace(',', '.')) || 0;
+    const qtd   = parseFloat((card.querySelector('.inp-qtd').value || '0').replace(',', '.')) || 0;
+    const valor = parseBRLInput(card.querySelector('.inp-valor').value);
     total += qtd * valor;
   });
   let final = total;
   if (formaPagamento.value === 'Cartão Crédito') final = +(total * 1.03).toFixed(2);
-  spanBase.textContent  = formatBRL(total);
-  spanFinal.textContent = formatBRL(final);
+  spanBase.textContent  = formatBRLDisplay(total);
+  spanFinal.textContent = formatBRLDisplay(final);
   hiddenBase.value  = total.toFixed(2);
   hiddenFinal.value = final.toFixed(2);
 }
@@ -224,8 +208,7 @@ function adicionarItem() {
   tipoSelect.addEventListener('change', toggleCusto);
   toggleCusto();
   div.querySelectorAll('input').forEach(i => i.addEventListener('input', atualizarTotal));
-  aplicarMascaraValor(div.querySelector('.inp-valor'));
-  aplicarMascaraValor(div.querySelector('.inp-custo'));
+  // Máscara R$ é aplicada globalmente via class .brl-mask (base.html).
   div.querySelector('.btn-remover').addEventListener('click', () => { div.remove(); atualizarTotal(); });
   listaItens.appendChild(div);
   atualizarTotal();

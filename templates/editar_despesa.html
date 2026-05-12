@@ -97,25 +97,7 @@
     atualizarCategorias();
   }
 
-  const inputValor = document.getElementById('inputValor');
-  if (inputValor) {
-    inputValor.addEventListener('input', function() {
-      let digits = this.value.replace(/\D/g, '');
-      if (!digits) {
-        this.value = '';
-        return;
-      }
-      const number = parseInt(digits, 10);
-      this.value = (number / 100).toLocaleString('pt-BR', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-      });
-    });
-    inputValor.addEventListener('keydown', function(event) {
-      if ([8, 9, 27, 46, 37, 38, 39, 40].includes(event.keyCode)) return;
-      if (!/^\d$/.test(event.key)) event.preventDefault();
-    });
-  }
+  // Máscara R$ aplicada globalmente via class .brl-mask (base.html).
 })();
 </script>
 {% endblock %}
