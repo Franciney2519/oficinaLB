@@ -2057,6 +2057,7 @@ def meus_servicos():
 
     clients_df = dal.get_all_clients().fillna("")
     clients = clients_df.to_dict(orient="records")
+    vehicles_by_client = _build_vehicles_map()
     return render_template(
         "meus_servicos.html",
         nome_logado=nome_logado,
@@ -2066,6 +2067,7 @@ def meus_servicos():
         valor_mes=valor_mes,
         services=services_list,
         clients=clients,
+        vehicles_by_client=vehicles_by_client,
         mes_atual=MONTH_NAMES[today.month - 1],
         ano_atual=today.year,
     )
@@ -2090,10 +2092,29 @@ def registrar_servico():
     if not cliente:
         flash("Cliente selecionado não encontrado.", "danger")
         return redirect(url_for("meus_servicos"))
+    id_veiculo_raw = request.form.get("id_veiculo", "").strip()
+    id_veiculo = None
+    if id_veiculo_raw and id_veiculo_raw.lower() not in ("", "none", "null"):
+        try:
+            id_veiculo = int(id_veiculo_raw)
+        except (TypeError, ValueError):
+            id_veiculo = None
+
+    carro_km = request.form.get("carro_km", "").strip()
+
     descricoes = request.form.getlist("descricao_servico[]") or [request.form.get("descricao_servico", "")]
     tipos = request.form.getlist("tipo_servico[]") or [request.form.get("tipo_servico", "")]
     valores = request.form.getlist("valor[]") or [request.form.get("valor", "")]
     observacoes_list = request.form.getlist("observacoes[]") or [request.form.get("observacoes", "")]
+
+    if not carro_km:
+        flash("Informe a quilometragem do carro para registrar o serviço.", "warning")
+        return redirect(url_for("meus_servicos"))
+
+    vehicles_by_client = _build_vehicles_map()
+    if vehicles_by_client.get(id_cliente) and id_veiculo is None:
+        flash("Selecione o carro cadastrado do cliente.", "warning")
+        return redirect(url_for("meus_servicos"))
 
     service_items = []
     for index, (descricao_raw, tipo_raw, valor_raw) in enumerate(zip(descricoes, tipos, valores), start=1):
@@ -2133,6 +2154,7 @@ def registrar_servico():
     for item in service_items:
         dal.add_service({
             "id_cliente": id_cliente,
+            "id_veiculo": id_veiculo,
             "data_execucao": datetime.today().strftime("%Y-%m-%d"),
             "descricao_servico": item["descricao"],
             "tipo_servico": item["tipo"],
@@ -2141,6 +2163,7 @@ def registrar_servico():
             "responsavel": nome_logado,
             "status": "Pendente",
             "ordem_servico": ordem_servico,
+            "carro_km": carro_km,
         })
     flash(
         f"{len(service_items)} serviço(s) registrado(s) na OS {ordem_servico}. Aguarde a conferência administrativa.",
@@ -3501,8 +3524,20 @@ def gerar_recibo_servico(service_id: int):
             budget_for_receipt = dal.get_budget_by_id(int(id_orcamento)) or {}
         except (TypeError, ValueError):
             budget_for_receipt = {}
-    veiculo = _get_veiculo_for_orcamento(budget_for_receipt, client)
+    else:
+        budget_for_receipt = {}
+
+    veiculo = {}
+    if primary_service.get("id_veiculo") is not None:
+        try:
+            veiculo = dal.get_vehicle_by_id(int(primary_service["id_veiculo"])) or {}
+        except (TypeError, ValueError):
+            veiculo = {}
+    elif id_orcamento:
+        veiculo = _get_veiculo_for_orcamento(budget_for_receipt, client)
+
     responsavel_receipt = str(primary_service.get("responsavel") or "").strip()
+    receipt_budget = {"carro_km": primary_service.get("carro_km", "")}
 
     pdf_buffer = _generate_receipt_pdf(
         budget_id=int(id_orcamento) if id_orcamento else service_id,

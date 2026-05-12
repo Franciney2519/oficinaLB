@@ -40,12 +40,25 @@
       <div class="row gy-3">
         <div class="col-md-6">
           <label class="form-label">Cliente</label>
-          <select name="id_cliente" class="form-select" required>
+          <select name="id_cliente" id="id_cliente" class="form-select" required>
             <option value="">Selecione o cliente</option>
             {% for cliente in clients %}
               <option value="{{ cliente.id_cliente }}">{{ cliente.nome }}</option>
             {% endfor %}
           </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Carro</label>
+          <select name="id_veiculo" id="id_veiculo" class="form-select" disabled>
+            <option value="">Selecione o cliente primeiro</option>
+          </select>
+          <div class="form-text text-muted" id="veiculo-sem-cadastro" style="display:none;">
+            Nenhum carro cadastrado para este cliente.
+          </div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">KM do carro</label>
+          <input type="text" name="carro_km" id="carro_km" class="form-control" placeholder="Informe a quilometragem" required>
         </div>
         <div class="col-12">
           <div id="servicos-diretos">
@@ -197,6 +210,40 @@
   });
 
   atualizarTitulos();
-})();
+
+  function atualizarCarros() {
+    const clientSelect = document.getElementById('id_cliente');
+    const vehicleSelect = document.getElementById('id_veiculo');
+    const noCarsHint = document.getElementById('veiculo-sem-cadastro');
+    const clientId = Number(clientSelect.value || 0);
+    const vehicles = vehiclesByClient[clientId] || [];
+
+    vehicleSelect.innerHTML = '';
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = vehicles.length ? 'Selecione o carro' : 'Selecione o cliente primeiro';
+    vehicleSelect.appendChild(placeholder);
+
+    if (vehicles.length) {
+      vehicles.forEach(function(vehicle) {
+        const option = document.createElement('option');
+        const labelParts = [vehicle.marca, vehicle.modelo, vehicle.ano ? '(' + vehicle.ano + ')' : '', vehicle.placa ? '- ' + vehicle.placa : ''];
+        option.value = vehicle.id_veiculo;
+        option.textContent = labelParts.filter(Boolean).join(' ').trim();
+        vehicleSelect.appendChild(option);
+      });
+      vehicleSelect.disabled = false;
+      vehicleSelect.required = true;
+      noCarsHint.style.display = 'none';
+    } else {
+      vehicleSelect.disabled = true;
+      vehicleSelect.required = false;
+      noCarsHint.style.display = clientId ? 'block' : 'none';
+    }
+  }
+
+  const vehiclesByClient = {{ vehicles_by_client | tojson }};
+  document.getElementById('id_cliente').addEventListener('change', atualizarCarros);
+  atualizarCarros();
 </script>
 {% endblock %}
