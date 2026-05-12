@@ -55,7 +55,7 @@
     <form action="{{ url_for('registrar_servico') }}" method="post">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="row gy-3">
-        <div class="col-md-4">
+        <div class="col-md-6">
           <label class="form-label">Cliente</label>
           <select name="id_cliente" class="form-select" required>
             <option value="">Selecione o cliente</option>
@@ -64,21 +64,36 @@
             {% endfor %}
           </select>
         </div>
-        <div class="col-md-4">
-          <label class="form-label">Tipo de serviço</label>
-          <input type="text" name="tipo_servico" class="form-control" placeholder="Ex: Revisão, troca de óleo" required>
-        </div>
-        <div class="col-md-4">
-          <label class="form-label">Valor</label>
-          <input type="text" name="valor" class="form-control" placeholder="0,00" required>
-        </div>
         <div class="col-12">
-          <label class="form-label">Descrição</label>
-          <textarea name="descricao_servico" class="form-control" rows="2" placeholder="Descreva o serviço realizado" required></textarea>
-        </div>
-        <div class="col-12">
-          <label class="form-label">Observações</label>
-          <textarea name="observacoes" class="form-control" rows="2" placeholder="Detalhes adicionais, peças usadas, etc."></textarea>
+          <div id="servicos-diretos">
+            <div class="servico-direto border rounded p-3 mb-3">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <strong class="servico-titulo">Serviço 1</strong>
+                <button type="button" class="btn btn-sm btn-outline-danger btn-remover-servico">Remover</button>
+              </div>
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label">Tipo de serviço</label>
+                  <input type="text" name="tipo_servico[]" class="form-control" placeholder="Ex: Revisão, troca de óleo" required>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Valor</label>
+                  <input type="text" name="valor[]" class="form-control" placeholder="0,00" required>
+                </div>
+                <div class="col-12">
+                  <label class="form-label">Descrição</label>
+                  <textarea name="descricao_servico[]" class="form-control" rows="2" placeholder="Descreva o serviço realizado" required></textarea>
+                </div>
+                <div class="col-12">
+                  <label class="form-label">Observações</label>
+                  <textarea name="observacoes[]" class="form-control" rows="2" placeholder="Detalhes adicionais, peças usadas, etc."></textarea>
+                </div>
+              </div>
+            </div>
+          </div>
+          <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-adicionar-servico">
+            <i class="bi bi-plus-circle me-1"></i>Adicionar outro serviço
+          </button>
         </div>
         <div class="col-12 text-end">
           <button type="submit" class="btn btn-primary">Enviar para revisão administrativa</button>
@@ -104,6 +119,7 @@
           <thead>
             <tr>
               <th>Data</th>
+              <th>OS</th>
               <th>Cliente</th>
               <th>Tipo</th>
               <th>Descrição</th>
@@ -115,6 +131,13 @@
             {% for s in services %}
               <tr>
                 <td><small>{{ s.data_formatada }}</small></td>
+                <td>
+                  {% if s.ordem_servico %}
+                    <code>{{ s.ordem_servico }}</code>
+                  {% else %}
+                    <span class="text-muted small">-</span>
+                  {% endif %}
+                </td>
                 <td>
                   {% if s.id_cliente %}
                     <a href="{{ url_for('historico_cliente', client_id=s.id_cliente) }}" class="text-decoration-none">
@@ -143,4 +166,48 @@
     {% endif %}
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+  const lista = document.getElementById('servicos-diretos');
+  const btnAdicionar = document.getElementById('btn-adicionar-servico');
+  if (!lista || !btnAdicionar) return;
+
+  function atualizarTitulos() {
+    const itens = Array.from(lista.querySelectorAll('.servico-direto'));
+    itens.forEach(function(item, index) {
+      item.querySelector('.servico-titulo').textContent = 'Serviço ' + (index + 1);
+      item.querySelector('.btn-remover-servico').classList.toggle('d-none', itens.length === 1);
+    });
+  }
+
+  function limparCampos(item) {
+    item.querySelectorAll('input, textarea').forEach(function(campo) {
+      campo.value = '';
+    });
+  }
+
+  btnAdicionar.addEventListener('click', function() {
+    const base = lista.querySelector('.servico-direto');
+    const novo = base.cloneNode(true);
+    limparCampos(novo);
+    lista.appendChild(novo);
+    atualizarTitulos();
+    novo.querySelector('input[name="tipo_servico[]"]').focus();
+  });
+
+  lista.addEventListener('click', function(event) {
+    const botao = event.target.closest('.btn-remover-servico');
+    if (!botao) return;
+    const itens = lista.querySelectorAll('.servico-direto');
+    if (itens.length <= 1) return;
+    botao.closest('.servico-direto').remove();
+    atualizarTitulos();
+  });
+
+  atualizarTitulos();
+})();
+</script>
 {% endblock %}

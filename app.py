@@ -679,6 +679,37 @@ def _parse_brl_number(raw_value: str) -> float:
     return float(value)
 
 
+def _generate_service_order_number(now: Optional[datetime] = None) -> str:
+    """Gera OS no formato ORDEMddmmaaaaHHMM."""
+    return "ORDEM" + (now or datetime.today()).strftime("%d%m%Y%H%M")
+
+
+def _service_order_label(service: dict) -> str:
+    ordem = str((service or {}).get("ordem_servico") or "").strip()
+    return ordem or f"#{(service or {}).get('id_servico')}"
+
+
+def _get_service_group(service: dict) -> list:
+    ordem = str((service or {}).get("ordem_servico") or "").strip()
+    if not ordem:
+        return [service] if service else []
+    services = dal.get_services_by_order(ordem)
+    return services or ([service] if service else [])
+
+
+def _build_service_items_from_services(services: list) -> list:
+    items = []
+    for service in services:
+        valor = float(service.get("valor") or 0)
+        items.append({
+            "descricao": service.get("descricao_servico") or "Serviço",
+            "quantidade": 1,
+            "valor_unitario": valor,
+            "subtotal": valor,
+        })
+    return items
+
+
 def _normalize_status(value: str) -> str:
     """Remove acentos e padroniza para facilitar comparações de status."""
     if not value:
@@ -1659,6 +1690,7 @@ def meus_servicos():
         services_list.append({
             "id_servico": row.get("id_servico"),
             "id_orcamento": row.get("id_orcamento"),
+            "ordem_servico": row.get("ordem_servico") or "",
             "id_cliente": row.get("id_cliente"),
             "cliente_nome": clients_lookup.get(_coerce_int(row.get("id_cliente")), "Cliente removido"),
             "data_formatada": _format_date(row.get("data_execucao")),
@@ -1695,11 +1727,6 @@ def registrar_servico():
     except (TypeError, ValueError):
         id_cliente = None
 
-    descricao = request.form.get("descricao_servico", "").strip()
-    tipo = request.form.get("tipo_servico", "").strip()
-    valor_raw = request.form.get("valor", "").strip()
-    observacoes = request.form.get("observacoes", "").strip()
-
     if not id_cliente:
         flash("Selecione um cliente para o serviço.", "warning")
         return redirect(url_for("meus_servicos"))
@@ -1707,32 +1734,60 @@ def registrar_servico():
     if not cliente:
         flash("Cliente selecionado não encontrado.", "danger")
         return redirect(url_for("meus_servicos"))
-    if not descricao:
-        flash("Informe a descrição do serviço.", "warning")
-        return redirect(url_for("meus_servicos"))
-    if not tipo:
-        flash("Informe o tipo do serviço.", "warning")
-        return redirect(url_for("meus_servicos"))
-    try:
-        valor = _parse_brl_number(valor_raw)
-    except ValueError:
-        flash("Informe um valor válido para o serviço.", "warning")
-        return redirect(url_for("meus_servicos"))
+    descricoes = request.form.getlist("descricao_servico[]") or [request.form.get("descricao_servico", "")]
+    tipos = request.form.getlist("tipo_servico[]") or [request.form.get("tipo_servico", "")]
+    valores = request.form.getlist("valor[]") or [request.form.get("valor", "")]
+    observacoes_list = request.form.getlist("observacoes[]") or [request.form.get("observacoes", "")]
 
-    dal.add_service(
-        {
-            "id_cliente": id_cliente,
-            "data_execucao": datetime.today().strftime("%Y-%m-%d"),
-            "descricao_servico": descricao,
-            "tipo_servico": tipo,
+    service_items = []
+    for index, (descricao_raw, tipo_raw, valor_raw) in enumerate(zip(descricoes, tipos, valores), start=1):
+        descricao = (descricao_raw or "").strip()
+        tipo = (tipo_raw or "").strip()
+        valor_text = (valor_raw or "").strip()
+        observacoes = (
+            observacoes_list[index - 1].strip()
+            if index - 1 < len(observacoes_list) and observacoes_list[index - 1]
+            else ""
+        )
+        if not descricao and not tipo and not valor_text:
+            continue
+        if not descricao:
+            flash(f"Informe a descrição do serviço {index}.", "warning")
+            return redirect(url_for("meus_servicos"))
+        if not tipo:
+            flash(f"Informe o tipo do serviço {index}.", "warning")
+            return redirect(url_for("meus_servicos"))
+        try:
+            valor = _parse_brl_number(valor_text)
+        except ValueError:
+            flash(f"Informe um valor válido para o serviço {index}.", "warning")
+            return redirect(url_for("meus_servicos"))
+        service_items.append({
+            "descricao": descricao,
+            "tipo": tipo,
             "valor": round(valor, 2),
             "observacoes": observacoes,
+        })
+
+    if not service_items:
+        flash("Inclua pelo menos um serviço.", "warning")
+        return redirect(url_for("meus_servicos"))
+
+    ordem_servico = _generate_service_order_number()
+    for item in service_items:
+        dal.add_service({
+            "id_cliente": id_cliente,
+            "data_execucao": datetime.today().strftime("%Y-%m-%d"),
+            "descricao_servico": item["descricao"],
+            "tipo_servico": item["tipo"],
+            "valor": item["valor"],
+            "observacoes": item["observacoes"],
             "responsavel": nome_logado,
             "status": "Pendente",
-        }
-    )
+            "ordem_servico": ordem_servico,
+        })
     flash(
-        "Serviço registrado com sucesso. Aguarde a revisão do administrador para gerar o comprovante e o lançamento financeiro.",
+        f"{len(service_items)} serviço(s) registrado(s) na OS {ordem_servico}. Aguarde a revisão do administrador.",
         "success",
     )
     return redirect(url_for("meus_servicos"))
@@ -1745,19 +1800,24 @@ def finalizar_servico(service_id: int):
     if not service:
         flash("Serviço não encontrado.", "danger")
         return redirect(url_for("historico_servicos"))
+    services_group = _get_service_group(service)
+    primary_service = services_group[0] if services_group else service
+    service_ids = [s.get("id_servico") for s in services_group if s.get("id_servico")]
+    service_ref = _service_order_label(primary_service)
 
     cliente = None
-    if service.get("id_cliente") is not None:
-        cliente = dal.get_client_by_id(int(service["id_cliente"]))
+    if primary_service.get("id_cliente") is not None:
+        cliente = dal.get_client_by_id(int(primary_service["id_cliente"]))
     if not cliente:
         flash("Cliente associado ao serviço não foi encontrado.", "warning")
         return redirect(url_for("historico_servicos"))
 
     if request.method == "POST":
-        descricao = request.form.get("descricao_servico", "").strip()
-        tipo = request.form.get("tipo_servico", "").strip()
-        valor_raw = request.form.get("valor", "").strip()
-        observacoes = request.form.get("observacoes", "").strip()
+        posted_ids = request.form.getlist("service_id[]")
+        descricoes = request.form.getlist("descricao_servico[]") or [request.form.get("descricao_servico", "")]
+        tipos = request.form.getlist("tipo_servico[]") or [request.form.get("tipo_servico", "")]
+        valores = request.form.getlist("valor[]") or [request.form.get("valor", "")]
+        observacoes_list = request.form.getlist("observacoes[]") or [request.form.get("observacoes", "")]
         produto_descricao = request.form.get("produto_descricao", "").strip()
         produto_valor_raw = request.form.get("produto_valor", "").strip()
         forma_pagamento = request.form.get("forma_pagamento", "PIX")
@@ -1766,16 +1826,41 @@ def finalizar_servico(service_id: int):
         if forma_pagamento not in PAYMENT_OPTIONS:
             flash("Escolha uma forma de pagamento válida.", "warning")
             return redirect(url_for("finalizar_servico", service_id=service_id))
-        if not descricao:
-            flash("Informe a descrição do serviço.", "warning")
-            return redirect(url_for("finalizar_servico", service_id=service_id))
-        if not tipo:
-            flash("Informe o tipo do serviço.", "warning")
-            return redirect(url_for("finalizar_servico", service_id=service_id))
-        try:
-            valor = _parse_brl_number(valor_raw)
-        except ValueError:
-            flash("Informe um valor válido para o serviço.", "warning")
+
+        services_to_update = []
+        for index, (descricao_raw, tipo_raw, valor_raw) in enumerate(zip(descricoes, tipos, valores), start=1):
+            descricao = (descricao_raw or "").strip()
+            tipo = (tipo_raw or "").strip()
+            valor_text = (valor_raw or "").strip()
+            observacoes = (
+                observacoes_list[index - 1].strip()
+                if index - 1 < len(observacoes_list) and observacoes_list[index - 1]
+                else ""
+            )
+            service_id_raw = posted_ids[index - 1] if index - 1 < len(posted_ids) else ""
+            sid = _coerce_int(service_id_raw) or (service_ids[index - 1] if index - 1 < len(service_ids) else None)
+            if not sid:
+                continue
+            if not descricao:
+                flash(f"Informe a descrição do serviço {index}.", "warning")
+                return redirect(url_for("finalizar_servico", service_id=service_id))
+            if not tipo:
+                flash(f"Informe o tipo do serviço {index}.", "warning")
+                return redirect(url_for("finalizar_servico", service_id=service_id))
+            try:
+                valor = _parse_brl_number(valor_text)
+            except ValueError:
+                flash(f"Informe um valor válido para o serviço {index}.", "warning")
+                return redirect(url_for("finalizar_servico", service_id=service_id))
+            services_to_update.append({
+                "id_servico": sid,
+                "descricao_servico": descricao,
+                "tipo_servico": tipo,
+                "valor": round(valor, 2),
+                "observacoes": observacoes,
+            })
+        if not services_to_update:
+            flash("Inclua pelo menos um serviço para finalizar.", "warning")
             return redirect(url_for("finalizar_servico", service_id=service_id))
         try:
             produto_valor = _parse_brl_number(produto_valor_raw)
@@ -1783,22 +1868,29 @@ def finalizar_servico(service_id: int):
             flash("Informe um valor válido para o custo da peça.", "warning")
             return redirect(url_for("finalizar_servico", service_id=service_id))
 
-        valor_final = round(valor + produto_valor, 2)
+        valor_servicos = round(sum(item["valor"] for item in services_to_update), 2)
+        valor_final = round(valor_servicos + produto_valor, 2)
         data_obj = _parse_date(data_conclusao)
         if not data_obj:
             flash("Informe uma data de conclusão válida.", "warning")
             return redirect(url_for("finalizar_servico", service_id=service_id))
 
-        dal.update_service(service_id, {
-            "descricao_servico": descricao,
-            "tipo_servico": tipo,
-            "valor": round(valor, 2),
-            "observacoes": observacoes,
-            "status": "Concluído",
-            "data_execucao": data_obj.strftime("%Y-%m-%d"),
-            "produto_descricao": produto_descricao,
-            "produto_valor": round(produto_valor, 2) if produto_valor else None,
-        })
+        for index, item in enumerate(services_to_update):
+            payload = {
+                "descricao_servico": item["descricao_servico"],
+                "tipo_servico": item["tipo_servico"],
+                "valor": item["valor"],
+                "observacoes": item["observacoes"],
+                "status": "Concluído",
+                "data_execucao": data_obj.strftime("%Y-%m-%d"),
+            }
+            if index == 0:
+                payload["produto_descricao"] = produto_descricao
+                payload["produto_valor"] = round(produto_valor, 2) if produto_valor else None
+            else:
+                payload["produto_descricao"] = ""
+                payload["produto_valor"] = None
+            dal.update_service(item["id_servico"], payload)
 
         existing_financial_df = dal.get_all_financial_entries()
         has_entry = False
@@ -1806,7 +1898,7 @@ def finalizar_servico(service_id: int):
             related_service = pd.to_numeric(
                 existing_financial_df.get("relacionado_servico_id"), errors="coerce"
             )
-            has_entry = ((related_service == service_id) &
+            has_entry = (related_service.isin(service_ids) &
                          (existing_financial_df["tipo_lancamento"].fillna("").astype(str).str.lower() == "entrada")).any()
 
         if not has_entry:
@@ -1814,7 +1906,7 @@ def finalizar_servico(service_id: int):
                 "data": data_obj.strftime("%Y-%m-%d"),
                 "tipo_lancamento": "Entrada",
                 "categoria": "Serviços prestados",
-                "descricao": f"Serviço #{service_id} - {cliente.get('nome', '')}",
+                "descricao": f"OS {service_ref} - {cliente.get('nome', '')}",
                 "valor": valor_final,
                 "relacionado_orcamento_id": None,
                 "relacionado_servico_id": service_id,
@@ -1828,7 +1920,7 @@ def finalizar_servico(service_id: int):
                 )
                 desc_col = existing_financial_df["descricao"].fillna("").astype(str)
                 has_exit_entry = (
-                    (related_service == service_id)
+                    related_service.isin(service_ids)
                     & (existing_financial_df["tipo_lancamento"].fillna("").astype(str).str.lower() == "saída")
                     & desc_col.str.contains(re.escape(produto_descricao), case=False, na=False)
                 ).any()
@@ -1837,7 +1929,7 @@ def finalizar_servico(service_id: int):
                     "data": data_obj.strftime("%Y-%m-%d"),
                     "tipo_lancamento": "Saída",
                     "categoria": "Materiais e peças - Componentes automotivos",
-                    "descricao": f"{produto_descricao} - Serviço #{service_id}",
+                    "descricao": f"{produto_descricao} - OS {service_ref}",
                     "valor": round(produto_valor, 2),
                     "relacionado_orcamento_id": None,
                     "relacionado_servico_id": service_id,
@@ -1845,7 +1937,7 @@ def finalizar_servico(service_id: int):
 
         texto_whatsapp = _generate_service_payment_whatsapp_text(
             cliente.get("nome", "cliente"),
-            service_id,
+            service_ref,
             valor_final,
             data_obj,
         )
@@ -1853,11 +1945,12 @@ def finalizar_servico(service_id: int):
 
         items = [
             {
-                "descricao": descricao,
+                "descricao": item["descricao_servico"],
                 "quantidade": 1,
-                "valor_unitario": round(valor, 2),
-                "subtotal": round(valor, 2),
+                "valor_unitario": item["valor"],
+                "subtotal": item["valor"],
             }
+            for item in services_to_update
         ]
         if produto_descricao and produto_valor > 0:
             items.append({
@@ -1869,8 +1962,8 @@ def finalizar_servico(service_id: int):
 
         return render_template(
             "pagamento_concluido.html",
-            entity_label="Serviço",
-            entity_id=service_id,
+            entity_label="OS",
+            entity_id=service_ref,
             budget_id=None,
             client=cliente,
             items=items,
@@ -1884,7 +1977,9 @@ def finalizar_servico(service_id: int):
 
     return render_template(
         "finalizar_servico.html",
-        service=service,
+        service=primary_service,
+        services=services_group,
+        service_ref=service_ref,
         client=cliente,
         payment_options=PAYMENT_OPTIONS,
         today_str=datetime.today().strftime("%Y-%m-%d"),
@@ -2028,7 +2123,8 @@ def historico_servicos():
     budgets_seen: dict = {}
     budgets_order: list = []
     for row in services_df.to_dict(orient="records"):
-        key = row.get("id_orcamento") or f"sem_{row.get('id_servico')}"
+        ordem_servico = str(row.get("ordem_servico") or "").strip()
+        key = row.get("id_orcamento") or (f"os_{ordem_servico}" if ordem_servico else f"sem_{row.get('id_servico')}")
         if key not in budgets_seen:
             marca  = str(row.get("marca") or "").strip()
             modelo = str(row.get("modelo") or "").strip()
@@ -2039,6 +2135,7 @@ def historico_servicos():
             budgets_seen[key] = {
                 "budget_id":    row.get("id_orcamento"),
                 "service_id":   row.get("id_orcamento") or row.get("id_servico"),
+                "order_number": ordem_servico,
                 "client_id":    row.get("id_cliente"),
                 "client_name":  row.get("nome") or "N/D",
                 "service_date": _format_date(row.get("data_execucao")),
@@ -2051,6 +2148,8 @@ def historico_servicos():
             }
             budgets_order.append(key)
         entry = budgets_seen[key]
+        if _normalize_status(row.get("status")) == "pendente":
+            entry["status"] = row.get("status") or entry["status"]
         entry["total_value"] = round(entry["total_value"] + float(row.get("valor") or 0), 2)
         entry["itens"].append({
             "tipo":        row.get("tipo_servico") or "-",
@@ -2533,14 +2632,14 @@ def _generate_payment_whatsapp_text(
 
 def _generate_service_payment_whatsapp_text(
     client_name: str,
-    service_id: int,
+    service_ref,
     valor_final: float,
     data_pagamento: datetime,
 ) -> str:
     """Mensagem curta para confirmar pagamento de serviço via WhatsApp."""
     linhas = [
         f"Olá {client_name}, tudo bem?",
-        f"Confirmamos o pagamento do serviço #{service_id}.",
+        f"Confirmamos o pagamento da OS {service_ref}.",
         f"Valor recebido: R$ {valor_final:.2f}",
         f"Data: {data_pagamento.strftime('%d/%m/%Y')}",
         "",
@@ -2556,13 +2655,14 @@ def _generate_service_receipt_pdf(
     items: list,
     valor_final: float,
     data_conclusao: datetime,
+    receipt_number=None,
 ) -> BytesIO:
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=18)
     pdf.add_page()
 
     pdf.set_font("Arial", "B", 16)
-    pdf.cell(0, 10, f"RECIBO N\u00ba: {service_id}", ln=1)
+    pdf.cell(0, 10, f"RECIBO N\u00ba: {receipt_number or service_id}", ln=1)
     pdf.set_font("Arial", "", 10)
     pdf.cell(0, 6, COMPANY_INFO.get("razao_social", ""), ln=1)
     pdf.cell(0, 6, COMPANY_INFO.get("endereco", ""), ln=1)
@@ -2989,26 +3089,22 @@ def gerar_recibo_servico(service_id: int):
     if not service:
         flash("Serviço não encontrado.", "danger")
         return redirect(url_for("historico_servicos"))
-    if str(service.get("status") or "").lower() != "concluído":
+    services_group = _get_service_group(service)
+    primary_service = services_group[0] if services_group else service
+    service_ref = _service_order_label(primary_service)
+    if any(str(s.get("status") or "").lower() != "concluído" for s in services_group):
         flash("O recibo só está disponível para serviços concluídos.", "warning")
         return redirect(url_for("historico_servicos"))
 
-    client = dal.get_client_by_id(int(service.get("id_cliente"))) if service.get("id_cliente") else None
+    client = dal.get_client_by_id(int(primary_service.get("id_cliente"))) if primary_service.get("id_cliente") else None
     if not client:
         flash("Cliente associado ao serviço não foi localizado.", "warning")
         return redirect(url_for("historico_servicos"))
 
-    valor_final = float(service.get("valor") or 0)
-    items = [
-        {
-            "descricao": service.get("descricao_servico", "Serviço"),
-            "quantidade": 1,
-            "valor_unitario": float(service.get("valor") or 0),
-            "subtotal": float(service.get("valor") or 0),
-        }
-    ]
-    produto_descricao = service.get("produto_descricao")
-    produto_valor = float(service.get("produto_valor") or 0)
+    items = _build_service_items_from_services(services_group)
+    valor_final = sum(float(item.get("subtotal") or 0) for item in items)
+    produto_descricao = primary_service.get("produto_descricao")
+    produto_valor = float(primary_service.get("produto_valor") or 0)
     if produto_descricao and produto_valor > 0:
         items.append({
             "descricao": produto_descricao,
@@ -3018,16 +3114,20 @@ def gerar_recibo_servico(service_id: int):
         })
         valor_final += produto_valor
 
-    data_conclusao = _parse_date(service.get("data_execucao")) or datetime.today()
+    data_conclusao = _parse_date(primary_service.get("data_execucao")) or datetime.today()
+    service_context = dict(primary_service)
+    if primary_service.get("ordem_servico"):
+        service_context["descricao_servico"] = f"Ordem de serviço {service_ref}"
     pdf_buffer = _generate_service_receipt_pdf(
         service_id=service_id,
-        service=service,
+        service=service_context,
         client=client,
         items=items,
         valor_final=valor_final,
         data_conclusao=data_conclusao,
+        receipt_number=service_ref,
     )
-    filename = f"recibo_servico_{service_id}_{_slugify_filename(client.get('nome', ''))}.pdf"
+    filename = f"recibo_{_slugify_filename(service_ref)}_{_slugify_filename(client.get('nome', ''))}.pdf"
     pdf_buffer.seek(0)
     return send_file(
         pdf_buffer,

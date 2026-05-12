@@ -27,6 +27,7 @@
         <thead>
           <tr>
             <th>Data</th>
+            <th>OS</th>
             <th>Descrição</th>
             <th>Tipo</th>
             <th>Valor</th>
@@ -36,13 +37,20 @@
           {% for servico in services %}
             <tr>
               <td>{{ servico.data_formatada }}</td>
+              <td>
+                {% if servico.ordem_servico %}
+                  <code>{{ servico.ordem_servico }}</code>
+                {% else %}
+                  <span class="text-muted small">-</span>
+                {% endif %}
+              </td>
               <td>{{ servico.descricao_servico }}</td>
               <td>{{ servico.tipo_servico }}</td>
               <td>R$ {{ '%.2f'|format(servico.valor or 0) }}</td>
             </tr>
           {% else %}
             <tr>
-              <td colspan="4" class="text-center">Nenhum serviço encontrado.</td>
+              <td colspan="5" class="text-center">Nenhum serviço encontrado.</td>
             </tr>
           {% endfor %}
         </tbody>

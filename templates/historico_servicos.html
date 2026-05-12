@@ -46,7 +46,7 @@
           <tr>
             <th>Cliente</th>
             <th>Veículo</th>
-            <th>Nº Orçamento</th>
+            <th>OS/Orçamento</th>
             <th>Data do Serviço</th>
             <th>KM</th>
             <th>Total</th>
@@ -59,7 +59,13 @@
             <tr>
               <td>{{ s.client_name }}</td>
               <td>{{ s.veiculo_info }}</td>
-              <td>{{ s.budget_id or '-' }}</td>
+              <td>
+                {% if s.order_number %}
+                  <code>{{ s.order_number }}</code>
+                {% else %}
+                  {{ s.budget_id or '-' }}
+                {% endif %}
+              </td>
               <td>{{ s.service_date }}</td>
               <td>{{ s.carro_km }}</td>
               <td>{{ s.total_value | brl }}</td>
@@ -167,7 +173,7 @@ document.querySelectorAll('.btn-detalhes').forEach(function(btn) {
       var s = JSON.parse(this.dataset.info);
 
       document.getElementById('modalDetalhesLabel').textContent =
-        (s.budget_id ? 'Detalhes do Orçamento #' + s.budget_id : 'Detalhes do Serviço #' + s.service_id);
+        (s.budget_id ? 'Detalhes do Orçamento #' + s.budget_id : 'Detalhes da OS ' + (s.order_number || s.service_id));
       document.getElementById('det-cliente').textContent = s.client_name || '-';
       document.getElementById('det-veiculo').textContent = s.veiculo_info || '-';
       document.getElementById('det-data').textContent    = s.service_date || '-';

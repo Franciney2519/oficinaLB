@@ -56,7 +56,7 @@ ORCAMENTO_COLUMNS = [
 SERVICO_COLUMNS = [
     "id_servico", "id_orcamento", "id_cliente", "data_execucao",
     "descricao_servico", "tipo_servico", "valor", "observacoes", "responsavel",
-    "status", "produto_descricao", "produto_valor",
+    "status", "produto_descricao", "produto_valor", "ordem_servico",
 ]
 FINANCEIRO_COLUMNS = [
     "id_lancamento", "data", "tipo_lancamento", "categoria", "descricao",
@@ -162,12 +162,14 @@ def init_db() -> None:
                     responsavel       TEXT,
                     status            TEXT,
                     produto_descricao TEXT,
-                    produto_valor     NUMERIC
+                    produto_valor     NUMERIC,
+                    ordem_servico     TEXT
                 )
             """)
             cur.execute("ALTER TABLE servicos ADD COLUMN IF NOT EXISTS status TEXT")
             cur.execute("ALTER TABLE servicos ADD COLUMN IF NOT EXISTS produto_descricao TEXT")
             cur.execute("ALTER TABLE servicos ADD COLUMN IF NOT EXISTS produto_valor NUMERIC")
+            cur.execute("ALTER TABLE servicos ADD COLUMN IF NOT EXISTS ordem_servico TEXT")
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS financeiro (
                     id_lancamento           SERIAL PRIMARY KEY,
@@ -539,6 +541,21 @@ def get_service_by_id(service_id: int) -> Optional[Dict]:
             cur.execute("SELECT * FROM servicos WHERE id_servico = %s", (service_id,))
             row = cur.fetchone()
             return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def get_services_by_order(ordem_servico: str) -> List[Dict]:
+    if not ordem_servico:
+        return []
+    conn = _get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT * FROM servicos WHERE ordem_servico = %s ORDER BY id_servico",
+                (ordem_servico,),
+            )
+            return [dict(row) for row in cur.fetchall()]
     finally:
         conn.close()
 

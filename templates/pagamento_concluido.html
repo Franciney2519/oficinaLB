@@ -11,7 +11,10 @@
   <h2 class="fw-bold text-success mb-1">Pagamento Concluído!</h2>
   {% set label = entity_label if entity_label is defined else 'Orçamento' %}
   {% set id_number = entity_id if entity_id is defined else budget_id %}
-  <p class="text-muted mb-0">{{ label }} <strong>#{{ id_number }}</strong> finalizado com sucesso.</p>
+  <p class="text-muted mb-0">
+    {{ label }} <strong>{% if label == 'OS' %}{{ id_number }}{% else %}#{{ id_number }}{% endif %}</strong>
+    finalizado com sucesso.
+  </p>
 </div>
 
 <div class="row justify-content-center g-3">
