@@ -1843,16 +1843,27 @@ def meus_servicos():
 
     services_list = []
     for row in mine_df.sort_values("data_execucao_dt", ascending=False).to_dict(orient="records"):
+        servico_id = _coerce_int(row.get("id_servico"))
+        orcamento_id = _coerce_int(row.get("id_orcamento"))
+        cliente_id = _coerce_int(row.get("id_cliente"))
+
+        # Servicos registrados diretamente pelo mecanico nao possuem id_orcamento.
+        # O template atual monta url_for('detalhes_orcamento', budget_id=s.id_orcamento)
+        # para cada linha; por isso nao podemos enviar NaN/None nesse campo.
+        # Usamos 0 apenas como valor seguro para geracao de URL e expomos
+        # tem_orcamento/id_orcamento_real para templates atualizados diferenciarem os fluxos.
         services_list.append({
-            "id_servico": row.get("id_servico"),
-            "id_orcamento": row.get("id_orcamento"),
+            "id_servico": servico_id,
+            "id_orcamento": orcamento_id if orcamento_id is not None else 0,
+            "id_orcamento_real": orcamento_id,
+            "tem_orcamento": orcamento_id is not None,
             "ordem_servico": row.get("ordem_servico") or "",
-            "id_cliente": row.get("id_cliente"),
-            "cliente_nome": clients_lookup.get(_coerce_int(row.get("id_cliente")), "Cliente removido"),
+            "id_cliente": cliente_id,
+            "cliente_nome": clients_lookup.get(cliente_id, "Cliente removido"),
             "data_formatada": _format_date(row.get("data_execucao")),
             "descricao": row.get("descricao_servico") or "-",
             "tipo": row.get("tipo_servico") or "-",
-            "valor": float(row.get("valor_num") or 0),
+            "valor": _coerce_float(row.get("valor_num")),
         })
 
     clients_df = dal.get_all_clients().fillna("")
