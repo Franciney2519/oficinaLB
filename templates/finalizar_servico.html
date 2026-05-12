@@ -28,7 +28,7 @@
                 </div>
                 <div class="col-md-6">
                   <label class="form-label">Valor do serviço</label>
-                  <input type="text" name="valor[]" class="form-control" value="{{ item.valor or '' }}" required>
+                  <input type="text" name="valor[]" class="form-control brl-mask" value="{{ item.valor or '' }}" required>
                 </div>
                 <div class="col-12">
                   <label class="form-label">Descrição do serviço</label>
@@ -55,7 +55,7 @@
           <div class="mb-3 row g-3">
             <div class="col-md-6">
               <label class="form-label">Custo da peça / material (opcional)</label>
-              <input type="text" name="produto_valor" class="form-control" placeholder="0,00">
+              <input type="text" name="produto_valor" class="form-control brl-mask" placeholder="0,00">
             </div>
             <div class="col-md-6">
               <label class="form-label">Descrição da peça / material</label>

@@ -207,12 +207,12 @@ function adicionarItem() {
         <div class="col-6">
           <label class="form-label small fw-semibold">Valor unit. (R$)</label>
           <input type="text" inputmode="numeric" name="item_valor[]"
-                 class="form-control form-control-lg inp-valor" placeholder="0,00" autocomplete="off">
+                 class="form-control form-control-lg inp-valor brl-mask" placeholder="0,00" autocomplete="off">
         </div>
         <div class="col-12 bloco-custo" style="display:none">
           <label class="form-label small fw-semibold text-warning">Custo de compra unit. (R$) <small class="text-muted fw-normal">— interno, não aparece no PDF</small></label>
           <input type="text" inputmode="numeric" name="item_custo[]"
-                 class="form-control form-control-lg inp-custo" placeholder="0,00" autocomplete="off">
+                 class="form-control form-control-lg inp-custo brl-mask" placeholder="0,00" autocomplete="off">
         </div>
       </div>
     </div>`;

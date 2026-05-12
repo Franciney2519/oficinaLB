@@ -239,7 +239,7 @@ function criarLinha(item = {}) {
   valorInput.type = 'text';
   valorInput.inputMode = 'numeric';
   valorInput.name = 'item_valor[]';
-  valorInput.className = 'form-control inp-valor';
+  valorInput.className = 'form-control inp-valor brl-mask';
   valorInput.autocomplete = 'off';
   valorInput.value = valorParaString(item.valor_unitario);
   appendCell(valorInput);
@@ -257,7 +257,7 @@ function criarLinha(item = {}) {
   custoInput.type = 'text';
   custoInput.inputMode = 'numeric';
   custoInput.name = 'item_custo[]';
-  custoInput.className = 'form-control inp-custo';
+  custoInput.className = 'form-control inp-custo brl-mask';
   custoInput.autocomplete = 'off';
   custoInput.placeholder = '0,00';
   custoInput.value = valorParaString(item.custo_unitario);

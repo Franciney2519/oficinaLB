@@ -806,6 +806,27 @@ def _normalize_status(value: str) -> str:
     return normalized.strip().lower()
 
 
+def _budget_status_display(status: str) -> str:
+    """Retorna um texto amigável para exibição do status do orçamento."""
+    raw_status = str(status or "").strip()
+    if not raw_status:
+        return "Sem status"
+
+    status_map = {
+        "pendente validacao admin": BUDGET_STATUS_PENDING_ADMIN,
+        "pendente validação admin": BUDGET_STATUS_PENDING_ADMIN,
+        "aprovado pelo admin": BUDGET_STATUS_ADMIN_APPROVED,
+        "aprovado": "Aprovado",
+        "concluido": "Concluído",
+        "finalizado": "Finalizado",
+        "reprovado": "Reprovado",
+        "pendente": "Pendente",
+    }
+
+    normalized_status = _normalize_status(raw_status)
+    return status_map.get(normalized_status, raw_status.replace("_", " ").capitalize())
+
+
 def _is_budget_finalized(status: str) -> bool:
     """Indica se um orçamento está em estado que impede nova efetivação."""
     return _normalize_status(status) in FINALIZED_BUDGET_STATUSES

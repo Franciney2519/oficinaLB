@@ -186,14 +186,34 @@
         input.value = formatCpfCnpj(input.value);
       }
 
+      function formatBRL(value) {
+        const digits = (value || '').replace(/\D/g, '').padStart(3, '0');
+        const integerPart = digits.slice(0, -2) || '0';
+        const decimalPart = digits.slice(-2);
+        const formatted = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+        return formatted + ',' + decimalPart;
+      }
+
+      function applyBRLMask(input) {
+        const cursorPosition = input.selectionStart;
+        const oldValue = input.value;
+        input.value = formatBRL(input.value);
+        const diff = input.value.length - oldValue.length;
+        input.setSelectionRange(Math.max(0, cursorPosition + diff), Math.max(0, cursorPosition + diff));
+      }
+
       document.addEventListener('input', function(event) {
         if (event.target.classList.contains('cpf-cnpj-mask')) {
           applyCpfCnpjMask(event.target);
+        }
+        if (event.target.classList.contains('brl-mask')) {
+          applyBRLMask(event.target);
         }
       });
 
       document.addEventListener('DOMContentLoaded', function() {
         document.querySelectorAll('.cpf-cnpj-mask').forEach(applyCpfCnpjMask);
+        document.querySelectorAll('.brl-mask').forEach(applyBRLMask);
       });
     </script>
     {% block scripts %}{% endblock %}
