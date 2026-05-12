@@ -1388,6 +1388,41 @@ def dashboard():
     resumo_execucao = resumo_execucao.sort_values("total_receita", ascending=False)
     executores = resumo_execucao.to_dict(orient="records")
 
+    # Orçamentos pendentes de aprovação administrativa
+    pending_budgets = []
+    if not budgets_df.empty:
+        clients_lookup = {}
+        if not clients_df.empty:
+            clients_lookup = {
+                _coerce_int(client.get("id_cliente")): client.get("nome", "")
+                for client in clients_df.fillna("").to_dict(orient="records")
+            }
+        for _, row in budgets_df.iterrows():
+            status_norm = _normalize_status(row.get("status", ""))
+            if status_norm not in ADMIN_APPROVED_BUDGET_STATUSES and status_norm != "reprovado":
+                budget_dict = row.to_dict()
+                budget_dict["status_display"] = _budget_status_display(budget_dict.get("status", ""))
+                budget_dict["cliente_nome"] = clients_lookup.get(_coerce_int(row.get("id_cliente")), "Cliente removido")
+                budget_dict["valor_display"] = _format_brl(_coerce_float(row.get("valor_total", 0)))
+                pending_budgets.append(budget_dict)
+
+    # Serviços pendentes de aprovação (status = Pendente)
+    pending_services = []
+    if not services_df.empty:
+        clients_lookup = {}
+        if not clients_df.empty:
+            clients_lookup = {
+                _coerce_int(client.get("id_cliente")): client.get("nome", "")
+                for client in clients_df.fillna("").to_dict(orient="records")
+            }
+        for _, row in services_df.iterrows():
+            status_norm = (str(row.get("status", "")).lower()).strip()
+            if status_norm == "pendente":
+                service_dict = row.to_dict()
+                service_dict["cliente_nome"] = clients_lookup.get(_coerce_int(row.get("id_cliente")), "Cliente removido")
+                service_dict["valor_display"] = _format_brl(_coerce_float(row.get("valor", 0)))
+                pending_services.append(service_dict)
+
     latest_budget = None
     if not budgets_df.empty:
         clients_lookup = {}
@@ -1435,6 +1470,8 @@ def dashboard():
         chart_saldo=chart_saldo,
         executores=executores,
         latest_budget=latest_budget,
+        pending_budgets=pending_budgets,
+        pending_services=pending_services,
     )
 
 
